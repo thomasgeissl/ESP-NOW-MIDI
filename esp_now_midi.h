@@ -35,12 +35,12 @@ public:
   }
 
   esp_err_t sendNoteOn(byte note, byte velocity, byte channel) {
-    midi_message myData;
-    myData.channel = channel;
-    myData.status = MIDI_NOTE_ON;
-    myData.firstByte = note;
-    myData.secondByte = velocity;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&myData, sizeof(myData));
+    midi_message message;
+    message.channel = channel;
+    message.status = MIDI_NOTE_ON;
+    message.firstByte = note;
+    message.secondByte = velocity;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendNoteOff(byte note, byte velocity, byte channel) {
@@ -81,12 +81,13 @@ public:
     midi_message myData;
     myData.channel = channel;
     myData.status = MIDI_PITCH_BEND;
+    // TODO
     myData.firstByte = value;  // Typically, this would be a 14-bit value, but simplified here
     return esp_now_send(_broadcastAddress, (uint8_t *)&myData, sizeof(myData));
   }
 
 private:
-  uint8_t _broadcastAddress[6];  // Make this a private member
-  esp_now_peer_info_t _peerInfo; // Ensure underscore is consistent
+  uint8_t _broadcastAddress[6];
+  esp_now_peer_info_t _peerInfo;
 };
 
