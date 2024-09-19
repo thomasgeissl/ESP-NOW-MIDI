@@ -4,13 +4,16 @@
 
 class esp_now_midi {
 public:
+  // Typedef for the callback function signature
+  typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
+
   // callback when data is sent (must be static for esp_now_register_send_cb)
-  static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   }
 
-  void setup(const uint8_t broadcastAddress[6]) {
+  void setup(const uint8_t broadcastAddress[6], DataSentCallback callback = DefaultOnDataSent) {
     // Copy the broadcast address into the class member variable
     memcpy(_broadcastAddress, broadcastAddress, sizeof(_broadcastAddress));
 
@@ -20,7 +23,7 @@ public:
     }
 
     // Once ESPNow is successfully initialized, register Send callback to get the status of the transmitted packet
-    esp_now_register_send_cb(OnDataSent);
+    esp_now_register_send_cb(callback);
 
     // Register peer
     memcpy(_peerInfo.peer_addr, _broadcastAddress, sizeof(_broadcastAddress));
@@ -44,50 +47,49 @@ public:
   }
 
   esp_err_t sendNoteOff(byte note, byte velocity, byte channel) {
-    midi_message myData;
-    myData.channel = channel;
-    myData.status = MIDI_NOTE_OFF;
-    myData.firstByte = note;
-    myData.secondByte = velocity;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&myData, sizeof(myData));
+    midi_message message;
+    message.channel = channel;
+    message.status = MIDI_NOTE_OFF;
+    message.firstByte = note;
+    message.secondByte = velocity;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendControlChange(byte control, byte value, byte channel) {
-    midi_message myData;
-    myData.channel = channel;
-    myData.status = MIDI_CONTROL_CHANGE;
-    myData.firstByte = control;
-    myData.secondByte = value;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&myData, sizeof(myData));
+    midi_message message;
+    message.channel = channel;
+    message.status = MIDI_CONTROL_CHANGE;
+    message.firstByte = control;
+    message.secondByte = value;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendProgramChange(byte program, byte channel) {
-    midi_message myData;
-    myData.channel = channel;
-    myData.status = MIDI_PROGRAM_CHANGE;
-    myData.firstByte = program;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&myData, sizeof(myData));
+    midi_message message;
+    message.channel = channel;
+    message.status = MIDI_PROGRAM_CHANGE;
+    message.firstByte = program;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendAfterTouch(byte pressure, byte channel) {
-    midi_message myData;
-    myData.channel = channel;
-    myData.status = MIDI_AFTERTOUCH;
-    myData.firstByte = pressure;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&myData, sizeof(myData));
+    midi_message message;
+    message.channel = channel;
+    message.status = MIDI_AFTERTOUCH;
+    message.firstByte = pressure;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendPitchBend(byte value, byte channel) {
-    midi_message myData;
-    myData.channel = channel;
-    myData.status = MIDI_PITCH_BEND;
+    midi_message message;
+    message.channel = channel;
+    message.status = MIDI_PITCH_BEND;
     // TODO
-    myData.firstByte = value;  // Typically, this would be a 14-bit value, but simplified here
-    return esp_now_send(_broadcastAddress, (uint8_t *)&myData, sizeof(myData));
+    message.firstByte = value;  // Typically, this would be a 14-bit value, but simplified here
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
 private:
   uint8_t _broadcastAddress[6];
   esp_now_peer_info_t _peerInfo;
 };
-

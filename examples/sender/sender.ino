@@ -7,11 +7,15 @@
 uint8_t broadcastAddress[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 esp_now_midi ESP_NOW_MIDI;
+void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("Custom Callback - Status: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
+}
  
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(broadcastAddress);
+  ESP_NOW_MIDI.setup(broadcastAddress, customOnDataSent);
 }
  
 void loop() {
