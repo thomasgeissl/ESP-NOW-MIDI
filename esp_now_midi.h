@@ -80,6 +80,19 @@ public:
     return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
+  esp_err_t sendAfterTouch(byte note, byte pressure, byte channel) {
+    midi_message message;
+    message.channel = channel;
+    message.status = MIDI_POLY_AFTERTOUCH;
+    message.firstByte = note;
+    message.secondByte = pressure;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+  }
+  // for those using the teensy library
+  esp_err_t sendAfterTouchPoly(byte note, byte pressure, byte channel) {
+    return sendAfterTouch(note, pressure, channel);
+  }
+
   esp_err_t sendPitchBend(byte value, byte channel) {
     midi_message message;
     message.channel = channel;

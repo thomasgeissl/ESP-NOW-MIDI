@@ -45,6 +45,21 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
         MIDI.sendControlChange(message.firstByte, message.secondByte, channel);
         break;
       }
+    case MIDI_PROGRAM_CHANGE:
+      {
+        MIDI.sendProgramChange(message.firstByte, channel);
+        break;
+      }
+    case MIDI_AFTERTOUCH:
+      {
+        MIDI.sendAfterTouch(message.firstByte, channel);
+        break;
+      }
+    case MIDI_POLY_AFTERTOUCH:
+      {
+        MIDI.sendAfterTouch(message.firstByte, message.secondByte, channel);
+        break;
+      }
   }
   Serial.print("Bytes received: ");
   Serial.println(len);
