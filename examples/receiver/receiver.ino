@@ -60,6 +60,13 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
         MIDI.sendAfterTouch(message.firstByte, message.secondByte, channel);
         break;
       }
+    case MIDI_PITCH_BEND:
+      {
+        int pitchBendValue = (message.secondByte << 7) | message.firstByte;
+
+        MIDI.sendPitchBend(pitchBendValue, channel);
+        break;
+      }
   }
   Serial.print("Bytes received: ");
   Serial.println(len);

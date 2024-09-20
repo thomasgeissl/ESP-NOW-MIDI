@@ -93,14 +93,20 @@ public:
     return sendAfterTouch(note, pressure, channel);
   }
 
-  esp_err_t sendPitchBend(byte value, byte channel) {
+  esp_err_t sendPitchBend(uint16_t value, byte channel) {
     midi_message message;
     message.channel = channel;
     message.status = MIDI_PITCH_BEND;
-    // TODO
-    message.firstByte = value;  // Typically, this would be a 14-bit value, but simplified here
+    
+    // Ensure value is within the valid 14-bit range (0 - 16383)
+    value = value & 0x3FFF; // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
+
+    // Split the 14-bit value into LSB and MSB (each 7 bits)
+    message.firstByte = value & 0x7F;        // LSB: lower 7 bits of the pitch bend value
+    message.secondByte = (value >> 7) & 0x7F; // MSB: upper 7 bits of the pitch bend value
+
     return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
-  }
+}
 
 private:
   uint8_t _broadcastAddress[6];
