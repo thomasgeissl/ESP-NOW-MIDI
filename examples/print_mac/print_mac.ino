@@ -1,11 +1,12 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 
-void setup(){
+void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.begin();
-
+}
+void loop() {
   uint8_t mac[6];
   esp_err_t ret = esp_wifi_get_mac(WIFI_IF_STA, mac);
   if (ret == ESP_OK) {
@@ -16,5 +17,5 @@ void setup(){
   } else {
     Serial.println("could not get MAC address");
   }
+  delay(5000);
 }
-void loop(){}

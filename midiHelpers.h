@@ -1,4 +1,5 @@
 #pragma once
+#include <Arduino.h>
 // https://github.com/danomatika/ofxMidi/blob/master/src/ofxMidiConstants.h
 
 // MIDI status bytes
@@ -36,7 +37,7 @@ enum MidiStatus {
 #define MIDI_MAX_BEND       16383
 
 
-typedef struct midi_message {
+struct midi_message {
     byte channel;
     MidiStatus status;
     byte firstByte;
