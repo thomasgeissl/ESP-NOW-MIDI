@@ -77,8 +77,6 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   Serial.print("second: ");
   Serial.println(message.secondByte);
   Serial.println();
-
-  // MIDI.sendControlChange(ID*10 + 3, myData.touch * 127, ID); //touch is only a trigger 0 or 1
 }
 
 void setup() {
@@ -94,6 +92,7 @@ void setup() {
   }
 
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  MIDI.begin(MIDI_CHANNEL_OMNI);
 }
 
 void loop() {
