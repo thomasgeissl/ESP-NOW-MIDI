@@ -25,7 +25,7 @@ void loop() {
     Serial.println("Error sending the data");
   }
   delay(100);
-  result = ESP_NOW_MIDI.sendNoteOff(60, 127, 0);
+  result = ESP_NOW_MIDI.sendNoteOff(60, 0, 1);
   delay(100);
   result = ESP_NOW_MIDI.sendControlChange(1, 127, 1);
   delay(100);
