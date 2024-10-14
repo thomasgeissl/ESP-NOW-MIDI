@@ -14,5 +14,5 @@ Any other ESP board with Wi-Fi capabilities should work as a sender.
 1. Integrate your sensor reading code into the sender.
 1. Use the provided API to send MIDI messages, similar to the original MIDI library.
 
-## current state
+## contributing
 If you find any bugs feel free to submit an issue on github, also PRs are very welcome.
