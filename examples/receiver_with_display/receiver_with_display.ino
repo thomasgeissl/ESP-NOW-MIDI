@@ -20,7 +20,7 @@
 #define OLED_RESET -1        // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3D  ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-unsigned long updateDisplayTimeStamp = 0; 
+unsigned long updateDisplayTimeStamp = 0;
 const long updateDisplayInterval = 1000;
 
 
@@ -31,6 +31,22 @@ midi_message message;
 uint8_t baseMac[6];
 String macStr;
 
+#define MAX_HISTORY 10  // Maximum number of messages to store
+
+struct MidiMessageHistory {
+  midi_message message;
+  unsigned long timestamp;  // Time the message was received
+};
+
+MidiMessageHistory messageHistory[MAX_HISTORY];  // Array to store the message history
+int messageIndex = 0;                            // Index to keep track of the last message in the array
+
+// Function to add a new message to the history
+void addToHistory(const midi_message &msg) {
+  messageHistory[messageIndex].message = msg;
+  messageHistory[messageIndex].timestamp = millis();  // Store the current time
+  messageIndex = (messageIndex + 1) % MAX_HISTORY;    // Circular buffer logic
+}
 
 
 void readMacAddress() {
@@ -48,6 +64,8 @@ void readMacAddress() {
 
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   memcpy(&message, incomingData, sizeof(message));
+  addToHistory(message);
+
   auto status = message.status;
   auto channel = message.channel;
   switch (status) {
@@ -106,6 +124,30 @@ void updateDiplay() {
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
   display.println(macStr);
+
+  int yOffset = 10;  // Start rendering messages below the MAC address
+  for (int i = 0; i < MAX_HISTORY; i++) {
+    int index = (messageIndex + i) % MAX_HISTORY;
+    
+    // Only display non-empty messages
+    if (messageHistory[index].timestamp > 0) {
+      display.setCursor(0, yOffset);
+      display.print("S:");   // Status
+      display.print(messageHistory[index].message.status, HEX);
+      display.print(" F:");
+      display.print(messageHistory[index].message.firstByte);
+      display.print(" S:");
+      display.print(messageHistory[index].message.secondByte);
+      
+      yOffset += 8;  // Move to the next line (8 pixels down)
+      
+      // Check if there's space left on the display
+      if (yOffset > SCREEN_HEIGHT - 8) {
+        break;  // Prevent writing off the screen
+      }
+    }
+  }
+
   display.display();
 }
 
