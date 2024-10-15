@@ -17,5 +17,11 @@ Any other ESP board with Wi-Fi capabilities should work as a sender.
 ## circuit python
 There is also a circuit python version of this library, only for the sender at the moment. Please be aware that it is not yet tested. Feedback is very welcome.
 
+## examples
+* **print_mac**: prints the mac address
+* **receiver**: this is the actual firmware that converts esp now message to midi messages, requires a midi capable board, e.g. esp32 s2 mini. in case you wanna put them into a case, you can probably find 3d models online, here is one for an esp32 s2 mini: https://www.thingiverse.com/thing:5427531
+* **receiver_with_display**: receiver code with an oled display to show MAC address and for monitoring incoming messages
+* **sender**: demo firmware that periodically sends midi messages via esp now
+
 ## contributing
 If you find any bugs feel free to submit an issue on github, also PRs are very welcome.
