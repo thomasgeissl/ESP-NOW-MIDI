@@ -6,8 +6,17 @@
 #include <MIDI.h>
 #include <esp_now_midi.h>
 
+#define MAX_PEERS 16
+#define MAC_ADDR_LEN 6
+
+
 Adafruit_USBD_MIDI usb_midi;
 MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
+
+
+// storing mac addresses of connected peers
+uint8_t peers[MAX_PEERS][MAC_ADDR_LEN];
+int peerCount = 0; 
 
 midi_message message;
 
@@ -27,8 +36,47 @@ void readMacAddress()
   }
 }
 
+bool isMacStored(const uint8_t *mac)
+{
+  for (int i = 0; i < macCount; i++)
+  {
+    if (memcmp(peers[i], mac, MAC_ADDR_LEN) == 0)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool addMacAddress(const uint8_t *mac)
+{
+  if (peerCount >= MAX_PEERS)
+  {
+    Serial.println("MAC address list is full!");
+    return false;
+  }
+
+  if (!isMacStored(mac))
+  {
+    memcpy(peers[peerCount], mac, MAC_ADDR_LEN);
+    peerCount++;
+    Serial.print("Added MAC: ");
+    for (int i = 0; i < MAC_ADDR_LEN; i++)
+    {
+      Serial.printf("%02X", mac[i]);
+      if (i < MAC_ADDR_LEN - 1)
+        Serial.print(":");
+    }
+    Serial.println();
+    return true;
+  }
+  return false;
+}
+
+
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
+  addMacAddress(mac);
   memcpy(&message, incomingData, sizeof(message));
   auto status = message.status;
   auto channel = message.channel;
