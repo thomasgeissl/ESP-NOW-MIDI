@@ -99,6 +99,14 @@ void setup()
 
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
   MIDI.begin(MIDI_CHANNEL_OMNI);
+  MIDI.setHandleNoteOn(onNoteOn);
+  MIDI.setHandleNoteOff(onNoteOff);
+  MIDI.setHandleControlChange(onControlChange);
+  MIDI.setHandleProgramChange(onProgramChange);
+  MIDI.setHandlePitchBend(onPitchBend);
+  MIDI.setHandleAfterTouchChannel(onAfterTouch);
+  MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+
   // If already enumerated, additional class driverr begin() e.g msc, hid, midi won't take effect until re-enumeration
   if (TinyUSBDevice.mounted())
   {
@@ -114,4 +122,78 @@ void loop()
   // Manual call tud_task since it isn't called by Core's background
   TinyUSBDevice.task();
 #endif
+  MIDI.read();
+}
+
+void onNoteOn(byte channel, byte pitch, byte velocity)
+{
+  midi_message message;
+  message.status = MIDI_NOTE_ON;
+  message.channel = channel;
+  message.firstByte = pitch;
+  message.secondByte = velocity;
+  // TODO: send via osc now
+  // TODO: how/where to specify receivers
+}
+void onNoteOff(byte channel, byte pitch, byte velocity)
+{
+  midi_message message;
+  message.status = MIDI_NOTE_OFF;
+  message.channel = channel;
+  message.firstByte = pitch;
+  message.secondByte = velocity;
+  // TODO: send via osc now
+  // TODO: how/where to specify receivers
+}
+void onControlChange(byte channel, byte controller, byte value)
+{
+  midi_message message;
+  message.status = MIDI_CONTROL_CHANGE;
+  message.channel = channel;
+  message.firstByte = controller;
+  message.secondByte = value;
+  // TODO: send via osc now
+  // TODO: how/where to specify receivers
+}
+void onProgramChange(byte channel, byte program)
+{
+  midi_message message;
+  message.status = MIDI_PROGRAM_CHANGE;
+  message.channel = channel;
+  message.firstByte = program;
+  // TODO: send via osc now
+  // TODO: how/where to specify receivers
+}
+void onAfterTouch(byte channel, byte pressure)
+{
+  midi_message message;
+  message.status = MIDI_AFTERTOUCH;
+  message.channel = channel;
+  message.firstByte = pressure;
+  // TODO: send via osc now
+  // TODO: how/where to specify receivers
+}
+void onPolyAfterTouch(byte channel, byte note, byte pressure)
+{
+  midi_message message;
+  message.status = MIDI_POLY_AFTERTOUCH;
+  message.channel = channel;
+  message.firstByte = note;
+  message.secondByte = pressure;
+  // TODO: send via osc now
+  // TODO: how/where to specify receivers
+}
+void onPitchBend(byte channel, u_int16_t value)
+{
+  midi_message message;
+  message.status = MIDI_PITCH_BEND;
+  message.channel = channel;
+  // Ensure value is within the valid 14-bit range (0 - 16383)
+  value = value & 0x3FFF; // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
+
+  // Split the 14-bit value into LSB and MSB (each 7 bits)
+  message.firstByte = value & 0x7F;         // LSB: lower 7 bits of the pitch bend value
+  message.secondByte = (value >> 7) & 0x7F; // MSB: upper 7 bits of the pitch bend value
+  // TODO: send via osc now
+  // TODO: how/where to specify receivers
 }
