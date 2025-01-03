@@ -16,9 +16,18 @@ public:
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   }
+  static void OnDataRecvStatic(const uint8_t *mac, const uint8_t *incomingData, int len)
+  {
+    Serial.println("static callback");
+    if (_instance)
+    {                                                // Ensure the instance pointer is not null
+      _instance->OnDataRecv(mac, incomingData, len); // Call the member function
+    }
+  }
 
   void setup(const uint8_t broadcastAddress[6], DataSentCallback callback = DefaultOnDataSent)
   {
+    _instance = this;
     // Copy the broadcast address into the class member variable
     memcpy(_broadcastAddress, broadcastAddress, sizeof(_broadcastAddress));
 
@@ -30,7 +39,7 @@ public:
 
     // Once ESPNow is successfully initialized, register Send callback to get the status of the transmitted packet
     esp_now_register_send_cb(callback);
-    esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+    esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecvStatic));
 
     // Register peer
     memcpy(_peerInfo.peer_addr, _broadcastAddress, sizeof(_broadcastAddress));
@@ -126,11 +135,13 @@ public:
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
+    Serial.println("member callback");
     midi_message message;
     memcpy(&message, incomingData, sizeof(message));
 
     auto status = message.status;
     auto channel = message.channel;
+    Serial.println("got message");
 
     switch (message.status)
     {
@@ -165,36 +176,45 @@ public:
       break;
     }
   }
-  void setHandleNoteOn(void (*callback)(byte channel, byte note, byte velocity)) { 
-  onNoteOnHandler = callback; 
-}
+  void setHandleNoteOn(void (*callback)(byte channel, byte note, byte velocity))
+  {
+    onNoteOnHandler = callback;
+  }
 
-void setHandleNoteOff(void (*callback)(byte channel, byte note, byte velocity)) { 
-  onNoteOffHandler = callback; 
-}
+  void setHandleNoteOff(void (*callback)(byte channel, byte note, byte velocity))
+  {
+    onNoteOffHandler = callback;
+  }
 
-void setHandleControlChange(void (*callback)(byte channel, byte control, byte value)) { 
-  onControlChangeHandler = callback; 
-}
+  void setHandleControlChange(void (*callback)(byte channel, byte control, byte value))
+  {
+    onControlChangeHandler = callback;
+  }
 
-void setHandleProgramChange(void (*callback)(byte channel, byte program)) { 
-  onProgramChangeHandler = callback; 
-}
+  void setHandleProgramChange(void (*callback)(byte channel, byte program))
+  {
+    onProgramChangeHandler = callback;
+  }
 
-void setHandlePitchBend(void (*callback)(byte channel, int value)) { 
-  onPitchBendHandler = callback; 
-}
+  void setHandlePitchBend(void (*callback)(byte channel, int value))
+  {
+    onPitchBendHandler = callback;
+  }
 
-void setHandleAfterTouchChannel(void (*callback)(byte channel, byte pressure)) { 
-  onAfterTouchChannelHandler = callback; 
-}
+  void setHandleAfterTouchChannel(void (*callback)(byte channel, byte pressure))
+  {
+    onAfterTouchChannelHandler = callback;
+  }
 
-void setHandleAfterTouchPoly(void (*callback)(byte channel, byte note, byte pressure)) { 
-  onAfterTouchPolyHandler = callback; 
-}
+  void setHandleAfterTouchPoly(void (*callback)(byte channel, byte note, byte pressure))
+  {
+    onAfterTouchPolyHandler = callback;
+  }
+
 private:
   uint8_t _broadcastAddress[6];
   esp_now_peer_info_t _peerInfo;
+  static esp_now_midi *_instance; // Static pointer to hold the instance
 
   // MIDI Handlers
   void (*onNoteOnHandler)(byte channel, byte note, byte velocity) = nullptr;

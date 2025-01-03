@@ -1,8 +1,9 @@
 #include <Arduino.h>
 #include <esp_now.h>
 #include <WiFi.h>
-#include "esp_now_midi.h"
+#include "../../../esp_now_midi.h"
 
+esp_now_midi *esp_now_midi::_instance = nullptr;
 
 // run the print_mac firmware and adjust the mac address
 uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
@@ -73,5 +74,5 @@ void loop() {
   delay(100);
   result = ESP_NOW_MIDI.sendPitchBend(0, 1);
 
-  delay(2000);
+  delay(5000);
 }
