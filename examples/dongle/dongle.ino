@@ -29,16 +29,19 @@ int peerCount = 0;
 struct MidiMessageHistory
 {
   midi_message message;
+
   unsigned long timestamp; // Time the message was received
+  bool outgoing;
 };
 
 MidiMessageHistory messageHistory[MAX_HISTORY]; // Array to store the message history
 int messageIndex = 0;                           // Index to keep track of the last message in the array
 
 // Function to add a new message to the history
-void addToHistory(const midi_message &msg)
+void addToHistory(const midi_message &msg, bool outgoing = false)
 {
   messageHistory[messageIndex].message = msg;
+  messageHistory[messageIndex].outgoing = outgoing;
   messageHistory[messageIndex].timestamp = millis(); // Store the current time
   messageIndex = (messageIndex + 1) % MAX_HISTORY;   // Circular buffer logic
 }
@@ -125,11 +128,10 @@ void send(midi_message message);
 void setup()
 {
   Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
-
-  readMacAddress();
 
   // Init ESP-NOW
+  WiFi.mode(WIFI_STA);
+  readMacAddress();
   if (esp_now_init() != ESP_OK)
   {
     Serial.println("Error initializing ESP-NOW");
@@ -138,8 +140,8 @@ void setup()
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
 
   // HERE YOU COULD MANUALLY ENTER THE MAC ADDRESS OF THE RECEIVER
-  uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
-  addMacAddress(broadcastAddress);
+  // uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
+  // addMacAddress(broadcastAddress);
 
   // Init MIDI
   MIDI.begin(MIDI_CHANNEL_OMNI);
@@ -166,7 +168,8 @@ void setup()
 void loop()
 {
   unsigned long currentMillis = millis();
-  if (currentMillis - updateDisplayTimeStamp >= updateDisplayInterval)
+  MIDI.read();
+  if (currentMillis - updateDisplayTimeStamp >= UPDATE_DISPLAY_INTERVAL)
   {
     updateDisplayTimeStamp = currentMillis;
     updateDisplay();
@@ -182,12 +185,13 @@ void updateDisplay()
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
   display.println(String("mac:") + macStr);
-  display.println(String("connections: ") + String(peerCount));
+  display.print(String("connections:") + String(peerCount));
+  display.println(String(" t:") + String(millis() / 1000));
 
   int lineY = 18;
   display.drawLine(0, lineY, SCREEN_WIDTH, lineY, WHITE);
 
-  int yOffset = 20; // Start rendering messages below the MAC address
+  int yOffset = 22; // Start rendering messages below the MAC address
   for (int i = 0; i < MAX_HISTORY; i++)
   {
     int index = (messageIndex + i) % MAX_HISTORY;
@@ -196,12 +200,12 @@ void updateDisplay()
     {
     case MIDI_NOTE_ON:
     {
-      statusString = "NOTE_ON";
+      statusString = "N_ON";
       break;
     }
     case MIDI_NOTE_OFF:
     {
-      statusString = "NOTE_OFF";
+      statusString = "N_OFF";
       break;
     }
     case MIDI_CONTROL_CHANGE:
@@ -233,7 +237,7 @@ void updateDisplay()
     default:
       break;
     }
-    while (statusString.length() < 8)
+    while (statusString.length() < 6)
     {
       statusString += " ";
     }
@@ -242,11 +246,28 @@ void updateDisplay()
     if (messageHistory[index].timestamp > 0)
     {
       display.setCursor(0, yOffset);
+      if (messageHistory[index].outgoing)
+      {
+        display.print("-> ");
+      }
+      else
+      {
+        display.print("<- ");
+      }
+      display.print(String(messageHistory[index].message.channel, HEX));
+      display.print(" ");
       display.print(statusString);
       display.print(" ");
-      display.print(messageHistory[index].message.firstByte);
+
+      char formattedByte[4]; // Buffer to store formatted byte (3 characters + null terminator)
+      // Format and print the first byte with spaces for padding
+      sprintf(formattedByte, "%3d", messageHistory[index].message.firstByte);
+      display.print(formattedByte);
       display.print(" ");
-      display.print(messageHistory[index].message.secondByte);
+
+      // Format and print the second byte with spaces for padding
+      sprintf(formattedByte, "%3d", messageHistory[index].message.secondByte);
+      display.print(formattedByte);
 
       yOffset += 8; // Move to the next line (8 pixels down)
 
@@ -322,13 +343,13 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 
 void onNoteOn(byte channel, byte pitch, byte velocity)
 {
+  Serial.println("Note On");
   midi_message message;
   message.status = MIDI_NOTE_ON;
   message.channel = channel;
   message.firstByte = pitch;
   message.secondByte = velocity;
-  // TODO: send via osc now
-  // TODO: how/where to specify receivers
+  send(message);
 }
 void onNoteOff(byte channel, byte pitch, byte velocity)
 {
@@ -337,8 +358,7 @@ void onNoteOff(byte channel, byte pitch, byte velocity)
   message.channel = channel;
   message.firstByte = pitch;
   message.secondByte = velocity;
-  // TODO: send via osc now
-  // TODO: how/where to specify receivers
+  send(message);
 }
 void onControlChange(byte channel, byte controller, byte value)
 {
@@ -347,8 +367,7 @@ void onControlChange(byte channel, byte controller, byte value)
   message.channel = channel;
   message.firstByte = controller;
   message.secondByte = value;
-  // TODO: send via osc now
-  // TODO: how/where to specify receivers
+  send(message);
 }
 void onProgramChange(byte channel, byte program)
 {
@@ -356,8 +375,7 @@ void onProgramChange(byte channel, byte program)
   message.status = MIDI_PROGRAM_CHANGE;
   message.channel = channel;
   message.firstByte = program;
-  // TODO: send via osc now
-  // TODO: how/where to specify receivers
+  send(message);
 }
 void onAfterTouch(byte channel, byte pressure)
 {
@@ -365,8 +383,7 @@ void onAfterTouch(byte channel, byte pressure)
   message.status = MIDI_AFTERTOUCH;
   message.channel = channel;
   message.firstByte = pressure;
-  // TODO: send via osc now
-  // TODO: how/where to specify receivers
+  send(message);
 }
 void onPolyAfterTouch(byte channel, byte note, byte pressure)
 {
@@ -375,8 +392,7 @@ void onPolyAfterTouch(byte channel, byte note, byte pressure)
   message.channel = channel;
   message.firstByte = note;
   message.secondByte = pressure;
-  // TODO: send via osc now
-  // TODO: how/where to specify receivers
+  send(message);
 }
 void onPitchBend(byte channel, int value)
 {
@@ -389,8 +405,7 @@ void onPitchBend(byte channel, int value)
   // Split the 14-bit value into LSB and MSB (each 7 bits)
   message.firstByte = value & 0x7F;         // LSB: lower 7 bits of the pitch bend value
   message.secondByte = (value >> 7) & 0x7F; // MSB: upper 7 bits of the pitch bend value
-  // TODO: send via osc now
-  // TODO: how/where to specify receivers
+  send(message);
 }
 
 esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
@@ -400,9 +415,11 @@ esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
   return result;
   // return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
 }
-void send(midi_message message){
+void send(midi_message message)
+{
   for (int i = 0; i < peerCount; i++)
   {
     send(peers[i], message);
   }
+  addToHistory(message, true);
 }
