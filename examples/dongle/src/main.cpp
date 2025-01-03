@@ -146,6 +146,14 @@ void setup()
 
   // Init MIDI
   MIDI.begin(MIDI_CHANNEL_OMNI);
+  // If already enumerated, additional class driverr begin() e.g msc, hid, midi won't take effect until re-enumeration
+  if (TinyUSBDevice.mounted())
+  {
+    TinyUSBDevice.detach();
+    delay(10);
+    TinyUSBDevice.attach();
+  }
+
   MIDI.setHandleNoteOn(onNoteOn);
   MIDI.setHandleNoteOff(onNoteOff);
   MIDI.setHandleControlChange(onControlChange);

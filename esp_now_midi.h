@@ -30,6 +30,7 @@ public:
 
     // Once ESPNow is successfully initialized, register Send callback to get the status of the transmitted packet
     esp_now_register_send_cb(callback);
+    esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
 
     // Register peer
     memcpy(_peerInfo.peer_addr, _broadcastAddress, sizeof(_broadcastAddress));
