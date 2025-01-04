@@ -5,7 +5,7 @@
 class esp_now_midi
 {
 public:
-  // Typedef for the callback function signature
+  // Typedef for the sent callback function signature
   typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
 
   // typedef void (*MidiCallback)(byte channel, byte firstByte, byte secondByte);
@@ -39,6 +39,7 @@ public:
 
     // Once ESPNow is successfully initialized, register Send callback to get the status of the transmitted packet
     esp_now_register_send_cb(callback);
+    esp_now_midi::_instance = this;
     esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecvStatic));
 
     // Register peer

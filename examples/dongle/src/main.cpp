@@ -106,6 +106,10 @@ bool addMacAddress(const uint8_t *mac)
     {
       Serial.println("Failed to add peer");
     }
+    else
+    {
+      Serial.println("added peer");
+    }
     return true;
   }
   return false;
@@ -339,20 +343,10 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
     break;
   }
   }
-  Serial.print("Bytes received: ");
-  Serial.println(len);
-  Serial.print("status: ");
-  Serial.println(message.status);
-  Serial.print("first: ");
-  Serial.println(message.firstByte);
-  Serial.print("second: ");
-  Serial.println(message.secondByte);
-  Serial.println();
 }
 
 void onNoteOn(byte channel, byte pitch, byte velocity)
 {
-  Serial.println("Note On");
   midi_message message;
   message.status = MIDI_NOTE_ON;
   message.channel = channel;
@@ -421,6 +415,7 @@ esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
 {
 
   esp_err_t result = esp_now_send(mac, (uint8_t *)&message, sizeof(message));
+  Serial.println("sending message to mac");
   return result;
   // return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
 }
