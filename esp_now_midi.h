@@ -226,3 +226,5 @@ private:
   void (*onAfterTouchChannelHandler)(byte channel, byte value) = nullptr;
   void (*onAfterTouchPolyHandler)(byte channel, byte note, byte value) = nullptr;
 };
+
+esp_now_midi* esp_now_midi::_instance = nullptr;

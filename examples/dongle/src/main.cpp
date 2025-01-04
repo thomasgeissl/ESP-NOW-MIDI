@@ -27,6 +27,13 @@ String macStr;
 uint8_t peers[MAX_PEERS][MAC_ADDR_LEN];
 int peerCount = 0;
 
+typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
+  static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
+  {
+    Serial.print("\r\nLast Packet Send Status:\t");
+    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  }
+
 struct MidiMessageHistory
 {
   midi_message message;
@@ -143,6 +150,7 @@ void setup()
     return;
   }
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  esp_now_register_send_cb(DefaultOnDataSent);
 
   // HERE YOU COULD MANUALLY ENTER THE MAC ADDRESS OF THE RECEIVER
   // uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
@@ -415,7 +423,6 @@ esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
 {
 
   esp_err_t result = esp_now_send(mac, (uint8_t *)&message, sizeof(message));
-  Serial.println("sending message to mac");
   return result;
   // return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
 }

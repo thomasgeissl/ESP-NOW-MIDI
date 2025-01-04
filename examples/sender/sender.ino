@@ -8,8 +8,8 @@ uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 
 esp_now_midi ESP_NOW_MIDI;
 void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.print("Custom Callback - Status: ");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
+  // Serial.print("Custom Callback - Status: ");
+  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
 }
 
 void onNoteOn(byte channel, byte note, byte velocity) {
