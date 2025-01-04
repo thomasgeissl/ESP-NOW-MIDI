@@ -18,7 +18,6 @@ public:
   }
   static void OnDataRecvStatic(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
-    Serial.println("static callback");
     if (_instance)
     {                                                // Ensure the instance pointer is not null
       _instance->OnDataRecv(mac, incomingData, len); // Call the member function
@@ -136,7 +135,6 @@ public:
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
-    Serial.println("member callback");
     midi_message message;
     memcpy(&message, incomingData, sizeof(message));
 
