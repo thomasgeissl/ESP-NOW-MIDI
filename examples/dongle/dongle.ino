@@ -26,6 +26,13 @@ String macStr;
 uint8_t peers[MAX_PEERS][MAC_ADDR_LEN];
 int peerCount = 0;
 
+typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
+static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
+{
+  // Serial.print("\r\nLast Packet Send Status:\t");
+  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
 struct MidiMessageHistory
 {
   midi_message message;
@@ -96,7 +103,7 @@ bool addMacAddress(const uint8_t *mac)
     Serial.println();
     // Register peer
     esp_now_peer_info_t peerInfo;
-    memcpy(peerInfo.peer_addr, mac, sizeof(mac));
+    memcpy(peerInfo.peer_addr, mac, MAC_ADDR_LEN);
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
 
@@ -104,6 +111,10 @@ bool addMacAddress(const uint8_t *mac)
     if (esp_now_add_peer(&peerInfo) != ESP_OK)
     {
       Serial.println("Failed to add peer");
+    }
+    else
+    {
+      Serial.println("successfully added peer");
     }
     return true;
   }
@@ -136,8 +147,11 @@ void setup()
   {
     Serial.println("Error initializing ESP-NOW");
     return;
+  }else{
+    Serial.println("successfully initialized ESP-NOW");
   }
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  esp_now_register_send_cb(DefaultOnDataSent);
 
   // HERE YOU COULD MANUALLY ENTER THE MAC ADDRESS OF THE RECEIVER
   // uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
@@ -338,20 +352,10 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
     break;
   }
   }
-  Serial.print("Bytes received: ");
-  Serial.println(len);
-  Serial.print("status: ");
-  Serial.println(message.status);
-  Serial.print("first: ");
-  Serial.println(message.firstByte);
-  Serial.print("second: ");
-  Serial.println(message.secondByte);
-  Serial.println();
 }
 
 void onNoteOn(byte channel, byte pitch, byte velocity)
 {
-  Serial.println("Note On");
   midi_message message;
   message.status = MIDI_NOTE_ON;
   message.channel = channel;
@@ -421,7 +425,6 @@ esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
 
   esp_err_t result = esp_now_send(mac, (uint8_t *)&message, sizeof(message));
   return result;
-  // return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
 }
 void send(midi_message message)
 {

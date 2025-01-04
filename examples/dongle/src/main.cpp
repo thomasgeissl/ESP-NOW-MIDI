@@ -28,11 +28,11 @@ uint8_t peers[MAX_PEERS][MAC_ADDR_LEN];
 int peerCount = 0;
 
 typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
-  static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
-  {
-    Serial.print("\r\nLast Packet Send Status:\t");
-    Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-  }
+static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
+{
+  // Serial.print("\r\nLast Packet Send Status:\t");
+  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
 
 struct MidiMessageHistory
 {
@@ -104,7 +104,7 @@ bool addMacAddress(const uint8_t *mac)
     Serial.println();
     // Register peer
     esp_now_peer_info_t peerInfo;
-    memcpy(peerInfo.peer_addr, mac, sizeof(mac));
+    memcpy(peerInfo.peer_addr, mac, MAC_ADDR_LEN);
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
 
@@ -115,7 +115,7 @@ bool addMacAddress(const uint8_t *mac)
     }
     else
     {
-      Serial.println("added peer");
+      Serial.println("successfully added peer");
     }
     return true;
   }
@@ -148,6 +148,8 @@ void setup()
   {
     Serial.println("Error initializing ESP-NOW");
     return;
+  }else{
+    Serial.println("successfully initialized ESP-NOW");
   }
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
   esp_now_register_send_cb(DefaultOnDataSent);
@@ -424,7 +426,6 @@ esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
 
   esp_err_t result = esp_now_send(mac, (uint8_t *)&message, sizeof(message));
   return result;
-  // return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
 }
 void send(midi_message message)
 {
