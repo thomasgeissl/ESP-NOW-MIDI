@@ -5,6 +5,10 @@ A typical setup requires two ESP-NOW capable boards, where the board connected t
 The ESP32-S2 Mini (Lolin S2 Mini) can act as both a receiver and a sender. An S3 should also work as a receiver.
 Any other ESP board with Wi-Fi capabilities should work as a sender.
 
+## use it basically everywhere
+* the dongle shows up as a class compliant midi controller
+* use it with MAX, pd, any DAW, processing, openFrameworks, any game engine that supports MIDI, ...
+
 ## usage
 1. Upload the print_mac example to an ESP32-S2 Mini board. The MAC address will be printed to via serial, or if you have a display connect to the dongle, you can skip this step, as the mac address will be printed on the display.
 1. Upload the dongle example to an ESP32-S2 Mini board.
@@ -22,7 +26,10 @@ There is also a circuit python version of this library, only for the sender at t
 ## examples
 * **print_mac**: periodically prints the mac address to the serial monitor
 * **dongle**: this is your esp now midi interface to your computer or any other usb midi host. it converts esp now message to midi messages, requires a midi capable board, e.g. esp32 s2 mini. in case you wanna put them into a case, you can probably find 3d models online, here is one for an esp32 s2 mini: https://www.thingiverse.com/thing:5427531
-* **sender**: demo firmware that periodically sends midi messages via esp now
+* **sender**: simple demo firmware that periodically sends midi messages via esp now
+* **client (wip)**: fully configurable client that includes already a couple of common sensors and exposes touch, digital and analog pins
+  * mpu6050 (gy521) - accelerometer, gyro, temperature
+  * vl53l0x - time of flight distance sensor
 
 ## contributing
 If you find any bugs feel free to submit an issue on github, also PRs are very welcome.
