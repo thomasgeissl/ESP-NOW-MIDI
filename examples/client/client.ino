@@ -3,6 +3,7 @@
 #include "esp_now_midi.h"
 
 #include <Adafruit_MPU6050.h>
+#include <Adafruit_VL53L0X.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 
@@ -13,9 +14,12 @@ uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 esp_now_midi ESP_NOW_MIDI;
 
 Adafruit_MPU6050 _mpu;
+Adafruit_VL53L0X _lox = Adafruit_VL53L0X();
+
 
 
 bool _mpu6050Connected = false;
+bool _vl53LoxConnected = false;
 
 
 void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -76,6 +80,14 @@ void setup() {
   } else {
     Serial.println("error");
   }
+
+  Serial.print("setting vl53l0x ... ");
+  _vl53LoxConnected = _mpu.begin();
+  if (_vl53LoxConnected) {
+    Serial.println("done");
+  } else {
+    Serial.println("error");
+  }
 }
 
 void loop() {
@@ -83,6 +95,16 @@ void loop() {
     sensors_event_t a, g, temp;
     _mpu.getEvent(&a, &g, &temp);
     Serial.print(a.acceleration.x);
+  }
+  if (_vl53LoxConnected) {
+    VL53L0X_RangingMeasurementData_t measure;
+    _lox.rangingTest(&measure, false);  // pass in 'true' to get debug data printout!
+    if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+      Serial.print("Distance (mm): ");
+      Serial.println(measure.RangeMilliMeter);
+    } else {
+      Serial.println(" out of range ");
+    }
   }
   esp_err_t result = ESP_NOW_MIDI.sendNoteOn(60, 127, 1);
 }
