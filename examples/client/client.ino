@@ -1,3 +1,4 @@
+#include "config.h"
 #include <esp_now.h>
 #include <WiFi.h>
 #include "esp_now_midi.h"
@@ -20,6 +21,8 @@ Adafruit_VL53L0X _lox = Adafruit_VL53L0X();
 
 bool _mpu6050Connected = false;
 bool _vl53LoxConnected = false;
+
+int _soloCC = -1;
 
 
 void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -51,6 +54,16 @@ void onAfterTouch(byte channel, byte value) {
 }
 void onPolyAfterTouch(byte channel, byte note, byte value) {
   Serial.printf("Poly After Touch - Channel: %d, note: %d, Value: %d\n", channel, note, value);
+}
+
+bool shouldSendControlChangeMessage(int controller) {
+  if (_soloCC <= 0) {
+    return true;
+  }
+  if (_soloCC == controller) {
+    return true;
+  }
+  return false;
 }
 
 void setup() {
@@ -95,16 +108,36 @@ void loop() {
     sensors_event_t a, g, temp;
     _mpu.getEvent(&a, &g, &temp);
     Serial.print(a.acceleration.x);
+    // esp_err_t result =
+    if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_X)) {
+      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ACCELERATION_X, map(a.acceleration.x, -10, 10, 0, 127), 1);
+    }
+    if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_Y)) {
+      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ACCELERATION_Y, map(a.acceleration.y, -10, 10, 0, 127), 1);
+    }
+    if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_Z)) {
+      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ACCELERATION_Z, map(a.acceleration.z, -10, 10, 0, 127), 1);
+    }
+    if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_X)) {
+      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ORIENTATION_X, map(g.orientation.x, -5000, 5000, 0, 127), 1);
+    }
+    if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_Y)) {
+      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ORIENTATION_Y, map(g.orientation.y, -5000, 5000, 0, 127), 1);
+    }
+    if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_Z)) {
+      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ORIENTATION_Z, map(g.orientation.z, -5000, 5000, 0, 127), 1);
+    }
   }
+  return;
+
   if (_vl53LoxConnected) {
     VL53L0X_RangingMeasurementData_t measure;
     _lox.rangingTest(&measure, false);  // pass in 'true' to get debug data printout!
-    if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+    if (measure.RangeStatus != 4) {     // phase failures have incorrect data
       Serial.print("Distance (mm): ");
       Serial.println(measure.RangeMilliMeter);
     } else {
       Serial.println(" out of range ");
     }
   }
-  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(60, 127, 1);
 }
