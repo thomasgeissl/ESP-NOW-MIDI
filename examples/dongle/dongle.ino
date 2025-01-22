@@ -191,13 +191,16 @@ void loop()
 {
   unsigned long currentMillis = millis();
   MIDI.read();
+#if HAS_DISPLAY == 1
   if (currentMillis - updateDisplayTimeStamp >= UPDATE_DISPLAY_INTERVAL)
   {
     updateDisplayTimeStamp = currentMillis;
     updateDisplay();
   }
+#endif
 }
 
+#if HAS_DISPLAY == 1
 void updateDisplay()
 {
   auto macStr = String(baseMac[0], HEX) + ":" + String(baseMac[1], HEX) + ":" + String(baseMac[2], HEX) + ":" + String(baseMac[3], HEX) + ":" + String(baseMac[4], HEX) + ":" + String(baseMac[5], HEX);
@@ -303,6 +306,7 @@ void updateDisplay()
 
   display.display();
 }
+#endif
 
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {

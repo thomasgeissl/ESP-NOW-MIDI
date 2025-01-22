@@ -25,11 +25,19 @@ There is also a circuit python version of this library, only for the sender at t
 
 ## examples
 * **print_mac**: periodically prints the mac address to the serial monitor
-* **dongle**: this is your esp now midi interface to your computer or any other usb midi host. it converts esp now message to midi messages, requires a midi capable board, e.g. esp32 s2 mini. in case you wanna put them into a case, you can probably find 3d models online, here is one for an esp32 s2 mini: https://www.thingiverse.com/thing:5427531
+* **dongle**: this is your esp now midi interface to your computer or any other usb midi host. it converts esp now message to midi messages, requires a midi capable board, e.g. esp32 s2 mini.
+the config.h you can disable the display - in case you are not using one
+if you wanna put them into a case, you can probably find 3d models online, here is one for an esp32 s2 mini: https://www.thingiverse.com/thing:5427531
 * **sender**: simple demo firmware that periodically sends midi messages via esp now
 * **client (wip)**: fully configurable client that includes already a couple of common sensors and exposes touch, digital and analog pins
   * mpu6050 (gy521) - accelerometer, gyro, temperature
   * vl53l0x - time of flight distance sensor
+
+## dependencies
+* dependencies for the library should be automatically installed
+* examples/dongle additionally depends on
+  * Adafruit GFX Library
+  * Adafruit SSD1306
 
 ## contributing
 If you find any bugs feel free to submit an issue on github, also PRs are very welcome.
