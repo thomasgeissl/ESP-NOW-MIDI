@@ -3,11 +3,11 @@ This is an Arduino library for sending MIDI messages via the ESP-NOW protocol.
 A typical setup requires two ESP-NOW capable boards, where the board connected to your computer needs to be MIDI-capable 
 
 The ESP32-S2 Mini (Lolin S2 Mini) can act as both a receiver and a sender. An S3 should also work as a receiver.
-Any other ESP board with Wi-Fi capabilities should work as a sender.
+Any ESP board with Wi-Fi capabilities should work as a sender.
 
 ## use it basically everywhere
 * the dongle shows up as a class compliant midi controller
-* use it with MAX, pd, any DAW, processing, openFrameworks, any game engine that supports MIDI, ...
+* use it with MAX, pd, any DAW, processing, openFrameworks, any game engine that supports MIDI, ... or even in the browser
 
 ## usage
 1. Upload the print_mac example to an ESP32-S2 Mini board. The MAC address will be printed to via serial, or if you have a display connect to the dongle, you can skip this step, as the mac address will be printed on the display.
