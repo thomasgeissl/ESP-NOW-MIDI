@@ -159,6 +159,10 @@ void setup()
 
   // Init MIDI
   MIDI.begin(MIDI_CHANNEL_OMNI);
+
+  TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
+  TinyUSBDevice.setProductDescriptor("enomik3000_receiver");
+  
   // If already enumerated, additional class driverr begin() e.g msc, hid, midi won't take effect until re-enumeration
   if (TinyUSBDevice.mounted())
   {
