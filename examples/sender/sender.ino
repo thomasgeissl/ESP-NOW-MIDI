@@ -46,6 +46,9 @@ void onStop() {
 void onContinue() {
   Serial.printf("Continue");
 }
+void onClock() {
+  Serial.printf("Clock");
+}
 
 void setup() {
   Serial.begin(115200);
@@ -65,6 +68,7 @@ void setup() {
   ESP_NOW_MIDI.setHandleStart(onStart);
   ESP_NOW_MIDI.setHandleStop(onStop);
   ESP_NOW_MIDI.setHandleContinue(onContinue);
+  ESP_NOW_MIDI.setHandleClock(onClock);
 }
 
 void loop() {

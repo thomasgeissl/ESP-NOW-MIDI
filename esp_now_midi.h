@@ -151,6 +151,12 @@ public:
     message.status = MIDI_CONTINUE;
     return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
+  esp_err_t sendClock()
+  {
+    midi_message message;
+    message.status = MIDI_TIME_CLOCK;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+  }
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
@@ -194,17 +200,29 @@ public:
       break;
     }
     case MIDI_START:
+    {
       if (onStartHandler)
         onStartHandler();
       break;
+    }
     case MIDI_STOP:
+    {
       if (onStopHandler)
         onStopHandler();
       break;
+    }
     case MIDI_CONTINUE:
+    {
       if (onContinueHandler)
         onContinueHandler();
       break;
+    }
+    case MIDI_TIME_CLOCK:
+    {
+      if (onClockHandler)
+        onClockHandler();
+      break;
+    }
     }
   }
   void setHandleNoteOn(void (*callback)(byte channel, byte note, byte velocity))
@@ -253,6 +271,10 @@ public:
   {
     onContinueHandler = callback;
   }
+  void setHandleClock(void (*callback)())
+  {
+    onClockHandler = callback;
+  }
 
 private:
   uint8_t _broadcastAddress[6];
@@ -270,6 +292,7 @@ private:
   void (*onStartHandler)() = nullptr;
   void (*onStopHandler)() = nullptr;
   void (*onContinueHandler)() = nullptr;
+  void (*onClockHandler)() = nullptr;
 };
 
-esp_now_midi* esp_now_midi::_instance = nullptr;
+esp_now_midi *esp_now_midi::_instance = nullptr;

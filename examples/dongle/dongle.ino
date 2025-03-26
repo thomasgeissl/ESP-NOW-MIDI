@@ -132,6 +132,9 @@ void onProgramChange(byte channel, byte program);
 void onAfterTouch(byte channel, byte pressure);
 void onPolyAfterTouch(byte channel, byte note, byte pressure);
 void onPitchBend(byte channel, int value);
+void onStart();
+void onStop();
+void onContinue();
 
 esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message);
 void send(midi_message message);
@@ -147,7 +150,9 @@ void setup()
   {
     Serial.println("Error initializing ESP-NOW");
     return;
-  }else{
+  }
+  else
+  {
     Serial.println("successfully initialized ESP-NOW");
   }
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
@@ -162,7 +167,7 @@ void setup()
 
   TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
   TinyUSBDevice.setProductDescriptor("enomik3000_dongle");
-  
+
   // If already enumerated, additional class driverr begin() e.g msc, hid, midi won't take effect until re-enumeration
   if (TinyUSBDevice.mounted())
   {
@@ -181,6 +186,7 @@ void setup()
   MIDI.setHandleStart(onStart);
   MIDI.setHandleStop(onStop);
   MIDI.setHandleContinue(onContinue);
+  MIDI.setHandleClock(onClock);
 
   // Init display
 #if HAS_DISPLAY == 1
@@ -192,7 +198,6 @@ void setup()
   }
   display.clearDisplay();
 #endif
-
 }
 
 void loop()
@@ -264,6 +269,21 @@ void updateDisplay()
     case MIDI_POLY_AFTERTOUCH:
     {
       statusString = "PAFTER";
+      break;
+    }
+    case MIDI_START:
+    {
+      statusString = "START";
+      break;
+    }
+    case MIDI_STOP:
+    {
+      statusString = "STOP";
+      break;
+    }
+    case MIDI_CONTINUE:
+    {
+      statusString = "CONT";
       break;
     }
 
@@ -450,6 +470,12 @@ void onContinue()
   message.status = MIDI_CONTINUE;
   send(message);
 }
+void onClock()
+{
+  midi_message message;
+  message.status = MIDI_TIME_CLOCK;
+  send(message);
+}
 
 esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
 {
@@ -459,11 +485,23 @@ esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
 void send(midi_message message)
 {
   bool shouldAddToHistory = true; // should go later into function params to filter out clock messages
+  switch (message.status)
+  {
+  case MIDI_TIME_CLOCK:
+  case MIDI_SONG_POS_POINTER:
+  {
+    shouldAddToHistory = false;
+    break;
+  }
+  default:
+    break;
+  }
   for (int i = 0; i < peerCount; i++)
   {
     send(peers[i], message);
   }
-  if(shouldAddToHistory){
+  if (shouldAddToHistory)
+  {
     addToHistory(message, true);
   }
 }
