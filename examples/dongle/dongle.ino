@@ -161,7 +161,7 @@ void setup()
   MIDI.begin(MIDI_CHANNEL_OMNI);
 
   TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
-  TinyUSBDevice.setProductDescriptor("enomik3000_receiver");
+  TinyUSBDevice.setProductDescriptor("enomik3000_dongle");
   
   // If already enumerated, additional class driverr begin() e.g msc, hid, midi won't take effect until re-enumeration
   if (TinyUSBDevice.mounted())
@@ -178,6 +178,9 @@ void setup()
   MIDI.setHandlePitchBend(onPitchBend);
   MIDI.setHandleAfterTouchChannel(onAfterTouch);
   MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+  MIDI.setHandleStart(onStart);
+  MIDI.setHandleStop(onStop);
+  MIDI.setHandleContinue(onContinue);
 
   // Init display
 #if HAS_DISPLAY == 1
@@ -189,6 +192,7 @@ void setup()
   }
   display.clearDisplay();
 #endif
+
 }
 
 void loop()
@@ -428,17 +432,38 @@ void onPitchBend(byte channel, int value)
   send(message);
 }
 
+void onStart()
+{
+  midi_message message;
+  message.status = MIDI_START;
+  send(message);
+}
+void onStop()
+{
+  midi_message message;
+  message.status = MIDI_STOP;
+  send(message);
+}
+void onContinue()
+{
+  midi_message message;
+  message.status = MIDI_CONTINUE;
+  send(message);
+}
+
 esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message)
 {
-
   esp_err_t result = esp_now_send(mac, (uint8_t *)&message, sizeof(message));
   return result;
 }
 void send(midi_message message)
 {
+  bool shouldAddToHistory = true; // should go later into function params to filter out clock messages
   for (int i = 0; i < peerCount; i++)
   {
     send(peers[i], message);
   }
-  addToHistory(message, true);
+  if(shouldAddToHistory){
+    addToHistory(message, true);
+  }
 }

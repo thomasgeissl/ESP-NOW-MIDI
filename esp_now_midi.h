@@ -133,6 +133,25 @@ public:
     return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
   }
 
+  esp_err_t sendStart()
+  {
+    midi_message message;
+    message.status = MIDI_START;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+  }
+  esp_err_t sendStop()
+  {
+    midi_message message;
+    message.status = MIDI_STOP;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+  }
+  esp_err_t sendContinue()
+  {
+    midi_message message;
+    message.status = MIDI_CONTINUE;
+    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+  }
+
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
     midi_message message;
@@ -140,7 +159,6 @@ public:
 
     auto status = message.status;
     auto channel = message.channel;
-    Serial.println("got message");
 
     switch (message.status)
     {
@@ -169,9 +187,23 @@ public:
         onAfterTouchPolyHandler(message.channel, message.firstByte, message.secondByte);
       break;
     case MIDI_PITCH_BEND:
+    {
       int pitchBendValue = (message.secondByte << 7) | message.firstByte;
       if (onPitchBendHandler)
         onPitchBendHandler(message.channel, pitchBendValue);
+      break;
+    }
+    case MIDI_START:
+      if (onStartHandler)
+        onStartHandler();
+      break;
+    case MIDI_STOP:
+      if (onStopHandler)
+        onStopHandler();
+      break;
+    case MIDI_CONTINUE:
+      if (onContinueHandler)
+        onContinueHandler();
       break;
     }
   }
@@ -209,6 +241,18 @@ public:
   {
     onAfterTouchPolyHandler = callback;
   }
+  void setHandleStart(void (*callback)())
+  {
+    onStartHandler = callback;
+  }
+  void setHandleStop(void (*callback)())
+  {
+    onStopHandler = callback;
+  }
+  void setHandleContinue(void (*callback)())
+  {
+    onContinueHandler = callback;
+  }
 
 private:
   uint8_t _broadcastAddress[6];
@@ -223,6 +267,9 @@ private:
   void (*onPitchBendHandler)(byte channel, int value) = nullptr;
   void (*onAfterTouchChannelHandler)(byte channel, byte value) = nullptr;
   void (*onAfterTouchPolyHandler)(byte channel, byte note, byte value) = nullptr;
+  void (*onStartHandler)() = nullptr;
+  void (*onStopHandler)() = nullptr;
+  void (*onContinueHandler)() = nullptr;
 };
 
 esp_now_midi* esp_now_midi::_instance = nullptr;

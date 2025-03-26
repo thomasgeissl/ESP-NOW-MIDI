@@ -37,6 +37,15 @@ void onAfterTouch(byte channel, byte value) {
 void onPolyAfterTouch(byte channel, byte note, byte value) {
   Serial.printf("Poly After Touch - Channel: %d, note: %d, Value: %d\n", channel, note, value);
 }
+void onStart() {
+  Serial.printf("Start");
+}
+void onStop() {
+  Serial.printf("Stop");
+}
+void onContinue() {
+  Serial.printf("Continue");
+}
 
 void setup() {
   Serial.begin(115200);
@@ -53,6 +62,9 @@ void setup() {
   ESP_NOW_MIDI.setHandlePitchBend(onPitchBend);
   ESP_NOW_MIDI.setHandleAfterTouchChannel(onAfterTouch);
   ESP_NOW_MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+  ESP_NOW_MIDI.setHandleStart(onStart);
+  ESP_NOW_MIDI.setHandleStop(onStop);
+  ESP_NOW_MIDI.setHandleContinue(onContinue);
 }
 
 void loop() {
