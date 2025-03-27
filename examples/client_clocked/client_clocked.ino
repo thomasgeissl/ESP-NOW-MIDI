@@ -18,7 +18,7 @@ void onStart() {
   Serial.println("start");
 }
 void onStop() {
-  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(60, 0, 1);
+  esp_err_t result = ESP_NOW_MIDI.sendNoteOff(60, 0, 1);
   Serial.println("stop");
 }
 void onContinue() {
@@ -27,7 +27,7 @@ void onContinue() {
 }
 
 void onClock() {
-  Serial.printf("Clock");
+  Serial.println("Clock");
 }
 
 void onNoteOn(byte channel, byte note, byte velocity) {
