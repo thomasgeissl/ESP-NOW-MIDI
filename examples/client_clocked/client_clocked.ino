@@ -50,8 +50,8 @@ void setup() {
   ESP_NOW_MIDI.setHandleClock(onClock);
   ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
 
-
   //send any midi message to register at the dongle
+  delay(1000);
   esp_err_t result = ESP_NOW_MIDI.sendControlChange(127, 127, 16);
 }
 
