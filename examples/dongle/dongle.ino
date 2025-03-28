@@ -494,12 +494,6 @@ void send(midi_message message) {
       Serial.print("Failed to send to peer ");
       Serial.print(" Error code: ");
       Serial.println(result);
-    } else {
-      // Alternative method for Arduino-ESP32
-      // Note: There's no direct way to get peer by index in Arduino-ESP32
-      // So we need to maintain our own peer list or use a different approach
-      // Serial.println("Peer iteration not fully supported - consider keeping peer list");
-      break;
     }
   }
 
