@@ -189,6 +189,13 @@ void updateDisplay() {
   for (int i = 0; i < MAX_HISTORY; i++) {
     int index = (messageIndex + i) % MAX_HISTORY;
     auto statusString = String("n/a");
+    auto channel = String(messageHistory[index].message.channel, HEX);
+
+    char firstByte[4];  // Buffer to store formatted byte (3 characters + null terminator)
+    sprintf(firstByte, "%3d", messageHistory[index].message.firstByte);
+    char secondByte[4];  // Buffer to store formatted byte (3 characters + null terminator)
+    sprintf(secondByte, "%3d", messageHistory[index].message.secondByte);
+
     switch (messageHistory[index].message.status) {
       case MIDI_NOTE_ON:
         {
@@ -228,16 +235,25 @@ void updateDisplay() {
       case MIDI_START:
         {
           statusString = "START";
+          channel = "";
+          firstByte[0] = '\0';
+          secondByte[0] = '\0';
           break;
         }
       case MIDI_STOP:
         {
           statusString = "STOP";
+          channel = "";
+          firstByte[0] = '\0';
+          secondByte[0] = '\0';
           break;
         }
       case MIDI_CONTINUE:
         {
           statusString = "CONT";
+          channel = "";
+          firstByte[0] = '\0';
+          secondByte[0] = '\0';
           break;
         }
 
@@ -256,20 +272,14 @@ void updateDisplay() {
       } else {
         display.print("<- ");
       }
-      display.print(String(messageHistory[index].message.channel, HEX));
+      display.print(channel);
       display.print(" ");
       display.print(statusString);
       display.print(" ");
 
-      char formattedByte[4];  // Buffer to store formatted byte (3 characters + null terminator)
-      // Format and print the first byte with spaces for padding
-      sprintf(formattedByte, "%3d", messageHistory[index].message.firstByte);
-      display.print(formattedByte);
+      display.print(firstByte);
       display.print(" ");
-
-      // Format and print the second byte with spaces for padding
-      sprintf(formattedByte, "%3d", messageHistory[index].message.secondByte);
-      display.print(formattedByte);
+      display.print(secondByte);
 
       yOffset += 8;  // Move to the next line (8 pixels down)
 
