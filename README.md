@@ -39,6 +39,7 @@ if you wanna put them into a case, you can probably find 3d models online, here 
 * examples/dongle additionally depends on
   * Adafruit GFX Library
   * Adafruit SSD1306
+* examples/client_dac_i2s depends on mozzi
 
 ## contributing
 If you find any bugs feel free to submit an issue on github, also PRs are very welcome.
