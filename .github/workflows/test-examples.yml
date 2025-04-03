@@ -28,7 +28,7 @@ jobs:
           arduino-cli lib install "Adafruit Zero DMA Library"
           arduino-cli lib install "Adafruit Unified Sensor"
           arduino-cli lib install "Adafruit MPU6050"
-          arduino-cli lib install "Adafruit VL53L0X"
+          arduino-cli lib install "Adafruit_VL53L0X"
           arduino-cli lib install "Adafruit SSD1306"
           arduino-cli lib install "Adafruit GFX Library"
 
