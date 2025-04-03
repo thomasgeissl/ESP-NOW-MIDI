@@ -32,13 +32,16 @@ if you wanna put them into a case, you can probably find 3d models online, here 
 * **client (wip)**: fully configurable client that includes already a couple of common sensors and exposes touch, digital and analog pins
   * mpu6050 (gy521) - accelerometer, gyro, temperature
   * vl53l0x - time of flight distance sensor
-* **client_dac_i2s (still untested)** - synth that can be controlled via dongle, e.g. send midi notes from a DAW to the dongle midi device
+* **client_dac_i2s (wip)** - synth that can be controlled via dongle, e.g. send midi notes from a DAW to the dongle midi device
 
 ## dependencies
 * dependencies for the library should be automatically installed
 * examples/dongle additionally depends on
   * Adafruit GFX Library
   * Adafruit SSD1306
+* examples/client depends on
+  * Adafruit MPU6050
+  * Adafruit VL53L0x
 * examples/client_dac_i2s depends on mozzi
 
 ## contributing
