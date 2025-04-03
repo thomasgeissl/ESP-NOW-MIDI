@@ -24,12 +24,14 @@ jobs:
 
       - name: Install required libraries
         run: |
-          # Audio/Mozzi dependencies
           arduino-cli lib install "Mozzi"
           arduino-cli lib install "Adafruit Zero DMA Library"
-          # Display dependencies
+          arduino-cli lib install "Adafruit Unified Sensor"
+          arduino-cli lib install "Adafruit MPU6050"
+          arduino-cli lib install "Adafruit VL53L0X"
           arduino-cli lib install "Adafruit SSD1306"
           arduino-cli lib install "Adafruit GFX Library"
+
           
       - name: Link local ESP-NOW-MIDI library
         run: |
