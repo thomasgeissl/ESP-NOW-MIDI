@@ -27,7 +27,7 @@ String macStr;
 
 
 
-uint8_t peerMacAddresses[MAX_PEERS][6];
+uint8_t peerMacAddresses[DONGLE_MAX_PEERS][6];
 int peerCount = 0;  // Keeps track of how many peers have been added
 
 typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
@@ -304,7 +304,7 @@ void onDataRecv(const esp_now_recv_info_t *messageInfo, const uint8_t *incomingD
       break;
     }
   }
-  if (!peerExists && peerCount < MAX_PEERS) {
+  if (!peerExists && peerCount < DONGLE_MAX_PEERS) {
     memcpy(peerMacAddresses[peerCount], messageInfo->src_addr, 6);
     //regiester peer
     esp_now_peer_info_t peerInfo = {};
