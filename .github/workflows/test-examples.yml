@@ -27,14 +27,10 @@ jobs:
           # Audio/Mozzi dependencies
           arduino-cli lib install "Mozzi"
           arduino-cli lib install "Adafruit Zero DMA Library"
-          
           # Display dependencies
           arduino-cli lib install "Adafruit SSD1306"
           arduino-cli lib install "Adafruit GFX Library"
           
-          # ESP-NOW dependencies
-          arduino-cli lib install "ESP32"
-
       - name: Link local ESP-NOW-MIDI library
         run: |
           mkdir -p "$HOME/Arduino/libraries"
