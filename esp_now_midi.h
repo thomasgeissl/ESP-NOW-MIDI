@@ -29,19 +29,19 @@ public:
     // Initialize peers array
     _peersCount = 0;
     
-    // Add the initial broadcast address as first peer
-    addPeer(broadcastAddress);
-
+    // Initialize ESP-NOW FIRST
     if (esp_now_init() != ESP_OK)
     {
       Serial.println("Error initializing ESP-NOW");
       return;
     }
-
-    // Once ESPNow is successfully initialized, register Send callback to get the status of the transmitted packet
+    
+    // Register callbacks AFTER initialization
     esp_now_register_send_cb(callback);
-    esp_now_midi::_instance = this;
     esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecvStatic));
+    
+    // Add the initial broadcast address as first peer AFTER ESP-NOW is initialized
+    addPeer(broadcastAddress);
   }
 
   // Add a new peer
@@ -52,32 +52,51 @@ public:
       return false;
     }
 
+    // Debug print
+    Serial.print("Adding peer: ");
+    for (int i = 0; i < 6; i++) {
+      Serial.print(macAddress[i], HEX);
+      if (i < 5) Serial.print(":");
+    }
+    Serial.println();
+
+    // Create the peer info structure
     esp_now_peer_info_t peerInfo;
     memset(&peerInfo, 0, sizeof(peerInfo));
-    memcpy(peerInfo.peer_addr, macAddress, sizeof(peerInfo.peer_addr));
+    memcpy(peerInfo.peer_addr, macAddress, 6);  // Always use exact size (6 bytes)
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
 
+    // Add the peer to ESP-NOW
     if (esp_now_add_peer(&peerInfo) != ESP_OK)
     {
       Serial.println("Failed to add peer");
       return false;
     }
 
-    // Store the peer in our array
+    // Store the peer in our array AFTER successful ESP-NOW registration
     memcpy(_peers[_peersCount], macAddress, 6);
     _peersCount++;
+    Serial.print("Peer added successfully. Total peers: ");
+    Serial.println(_peersCount);
     return true;
   }
 
   // Send to all peers
   esp_err_t sendToAllPeers(const uint8_t *data, size_t len) {
     esp_err_t result = ESP_OK;
+    
+    if (_peersCount == 0) {
+      Serial.println("No peers registered!");
+      return ESP_FAIL;
+    }
+    
     for (int i = 0; i < _peersCount; i++) {
+      
       esp_err_t err = esp_now_send(_peers[i], data, len);
       if (err != ESP_OK) {
         result = err; // Return last error if any
-      }
+      } 
     }
     return result;
   }
