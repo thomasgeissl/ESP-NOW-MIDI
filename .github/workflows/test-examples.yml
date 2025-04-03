@@ -32,8 +32,13 @@ jobs:
           arduino-cli lib install "Adafruit_VL53L0X"
           arduino-cli lib install "Adafruit SSD1306"
           arduino-cli lib install "Adafruit GFX Library"
+      
+      - name: Install ESP-NOW-MIDI Library
+        run: |
+          mkdir -p "$HOME/Arduino/libraries"
+          # Copy the library (not symlink) to avoid path issues
+          cp -r "$GITHUB_WORKSPACE" "$HOME/Arduino/libraries/ESP-NOW-MIDI"
 
-          
       - name: Verify installations
         run: |
           arduino-cli lib list
