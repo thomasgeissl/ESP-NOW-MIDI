@@ -34,11 +34,6 @@ jobs:
           arduino-cli lib install "Adafruit GFX Library"
 
           
-      - name: Link local ESP-NOW-MIDI library
-        run: |
-          mkdir -p "$HOME/Arduino/libraries"
-          ln -s "$GITHUB_WORKSPACE" "$HOME/Arduino/libraries/ESP-NOW-MIDI"
-
       - name: Verify installations
         run: |
           arduino-cli lib list
