@@ -25,6 +25,7 @@ jobs:
       - name: Install required libraries
         run: |
           arduino-cli lib install "Mozzi"
+          arduino-cli lib install "Adafruit TinyUSB Library"
           arduino-cli lib install "Adafruit Zero DMA Library"
           arduino-cli lib install "Adafruit Unified Sensor"
           arduino-cli lib install "Adafruit MPU6050"
