@@ -1,6 +1,6 @@
 #define HAS_DISPLAY 1
 #define MAX_HISTORY 5 // Maximum number of messages to store
-#define MAX_PEERS 16
+#define MAX_PEERS 20
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels

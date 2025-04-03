@@ -27,7 +27,6 @@ String macStr;
 
 
 
-#define MAX_PEERS 20
 uint8_t peerMacAddresses[MAX_PEERS][6];
 int peerCount = 0;  // Keeps track of how many peers have been added
 
