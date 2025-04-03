@@ -8,14 +8,13 @@ public:
   // Typedef for the sent callback function signature
   typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
 
-  // typedef void (*MidiCallback)(byte channel, byte firstByte, byte secondByte);
-
   // callback when data is sent (must be static for esp_now_register_send_cb)
   static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
   {
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   }
+  
   static void OnDataRecvStatic(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
     if (_instance)
@@ -27,8 +26,11 @@ public:
   void setup(const uint8_t broadcastAddress[6], DataSentCallback callback = DefaultOnDataSent)
   {
     _instance = this;
-    // Copy the broadcast address into the class member variable
-    memcpy(_broadcastAddress, broadcastAddress, sizeof(_broadcastAddress));
+    // Initialize peers array
+    _peersCount = 0;
+    
+    // Add the initial broadcast address as first peer
+    addPeer(broadcastAddress);
 
     if (esp_now_init() != ESP_OK)
     {
@@ -40,18 +42,44 @@ public:
     esp_now_register_send_cb(callback);
     esp_now_midi::_instance = this;
     esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecvStatic));
+  }
 
-    // Register peer
-    memcpy(_peerInfo.peer_addr, _broadcastAddress, sizeof(_broadcastAddress));
-    _peerInfo.channel = 0;
-    _peerInfo.encrypt = false;
+  // Add a new peer
+  bool addPeer(const uint8_t macAddress[6])
+  {
+    if (_peersCount >= MAX_PEERS) {
+      Serial.println("Maximum number of peers reached");
+      return false;
+    }
 
-    // Add peer
-    if (esp_now_add_peer(&_peerInfo) != ESP_OK)
+    esp_now_peer_info_t peerInfo;
+    memset(&peerInfo, 0, sizeof(peerInfo));
+    memcpy(peerInfo.peer_addr, macAddress, sizeof(peerInfo.peer_addr));
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+
+    if (esp_now_add_peer(&peerInfo) != ESP_OK)
     {
       Serial.println("Failed to add peer");
-      return;
+      return false;
     }
+
+    // Store the peer in our array
+    memcpy(_peers[_peersCount], macAddress, 6);
+    _peersCount++;
+    return true;
+  }
+
+  // Send to all peers
+  esp_err_t sendToAllPeers(const uint8_t *data, size_t len) {
+    esp_err_t result = ESP_OK;
+    for (int i = 0; i < _peersCount; i++) {
+      esp_err_t err = esp_now_send(_peers[i], data, len);
+      if (err != ESP_OK) {
+        result = err; // Return last error if any
+      }
+    }
+    return result;
   }
 
   esp_err_t sendNoteOn(byte note, byte velocity, byte channel)
@@ -61,7 +89,7 @@ public:
     message.status = MIDI_NOTE_ON;
     message.firstByte = note;
     message.secondByte = velocity;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendNoteOff(byte note, byte velocity, byte channel)
@@ -71,7 +99,7 @@ public:
     message.status = MIDI_NOTE_OFF;
     message.firstByte = note;
     message.secondByte = velocity;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendControlChange(byte control, byte value, byte channel)
@@ -81,7 +109,7 @@ public:
     message.status = MIDI_CONTROL_CHANGE;
     message.firstByte = control;
     message.secondByte = value;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendProgramChange(byte program, byte channel)
@@ -90,7 +118,7 @@ public:
     message.channel = channel;
     message.status = MIDI_PROGRAM_CHANGE;
     message.firstByte = program;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendAfterTouch(byte pressure, byte channel)
@@ -99,7 +127,7 @@ public:
     message.channel = channel;
     message.status = MIDI_AFTERTOUCH;
     message.firstByte = pressure;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendAfterTouch(byte note, byte pressure, byte channel)
@@ -109,7 +137,7 @@ public:
     message.status = MIDI_POLY_AFTERTOUCH;
     message.firstByte = note;
     message.secondByte = pressure;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
   // for those using the teensy library
   esp_err_t sendAfterTouchPoly(byte note, byte pressure, byte channel)
@@ -130,32 +158,32 @@ public:
     message.firstByte = value & 0x7F;         // LSB: lower 7 bits of the pitch bend value
     message.secondByte = (value >> 7) & 0x7F; // MSB: upper 7 bits of the pitch bend value
 
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
 
   esp_err_t sendStart()
   {
     midi_message message;
     message.status = MIDI_START;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
   esp_err_t sendStop()
   {
     midi_message message;
     message.status = MIDI_STOP;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
   esp_err_t sendContinue()
   {
     midi_message message;
     message.status = MIDI_CONTINUE;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
   esp_err_t sendClock()
   {
     midi_message message;
     message.status = MIDI_TIME_CLOCK;
-    return esp_now_send(_broadcastAddress, (uint8_t *)&message, sizeof(message));
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
@@ -277,8 +305,9 @@ public:
   }
 
 private:
-  uint8_t _broadcastAddress[6];
-  esp_now_peer_info_t _peerInfo;
+  static const int MAX_PEERS = 20;
+  uint8_t _peers[MAX_PEERS][6]; // Array to store MAC addresses of peers
+  int _peersCount;              // Current number of peers
   static esp_now_midi *_instance; // Static pointer to hold the instance
 
   // MIDI Handlers

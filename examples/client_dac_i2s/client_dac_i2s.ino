@@ -7,7 +7,8 @@
 #include <tables/sin2048_int8.h>
 #include <ADSR.h>
 
-uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
+// on the dongle: run the print_mac firmware and paste it here
+uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 
 esp_now_midi ESP_NOW_MIDI;
 void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -45,7 +46,7 @@ float mtof(byte note) {
 
 void setup() {
   WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(broadcastAddress, customOnDataSent);
+  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
 
   ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
   ESP_NOW_MIDI.setHandleNoteOff(onNoteOff);  // Fixed: Changed from setHandleNoteOn to setHandleNoteOff

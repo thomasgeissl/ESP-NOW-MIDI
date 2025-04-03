@@ -3,8 +3,8 @@
 #include "esp_now_midi.h"
 
 
-// run the print_mac firmware and adjust the mac address
-uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
+// on the dongle: run the print_mac firmware and paste it here
+uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 
 esp_now_midi ESP_NOW_MIDI;
 void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -53,8 +53,8 @@ void onClock() {
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(broadcastAddress, customOnDataSent);
-  // ESP_NOW_MIDI.setup(broadcastAddress); //or get rid of the custom send function and use the default one
+  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
+  // ESP_NOW_MIDI.setup(destinationMacAddress); //or get rid of the custom send function and use the default one
 
   // all of these midi handlers are optional, depends on the usecase, very often you just wanna send data and not receive
   // e.g. this can be used for calibration, or maybe you wanna connect an amp via i2s and render some sound
