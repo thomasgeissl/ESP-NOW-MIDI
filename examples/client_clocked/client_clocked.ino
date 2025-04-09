@@ -30,6 +30,18 @@ void onClock() {
   Serial.println("Clock");
 }
 
+void onSongPosition(int value) {
+  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(127, 127, 1);
+  Serial.print("song position: ");
+  Serial.print(value);
+}
+
+void onSongSelect(int value) {
+  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(126, 127, 1);
+  Serial.print("song: ");
+  Serial.print(value);
+}
+
 void onNoteOn(byte channel, byte note, byte velocity) {
   Serial.printf("Note On - Channel: %d, Note: %d, Velocity: %d\n", channel, note, velocity);
 }
@@ -49,6 +61,8 @@ void setup() {
   ESP_NOW_MIDI.setHandleContinue(onContinue);
   ESP_NOW_MIDI.setHandleClock(onClock);
   ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
+  ESP_NOW_MIDI.setHandleSongPosition(onSongPosition);
+  ESP_NOW_MIDI.setHandleSongSelect(onSongSelect);
 
   //send any midi message to register at the dongle
   delay(1000);

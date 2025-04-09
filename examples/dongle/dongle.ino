@@ -143,6 +143,8 @@ void setup() {
   MIDI.setHandleStop(onStop);
   MIDI.setHandleContinue(onContinue);
   MIDI.setHandleClock(onClock);
+  MIDI.setHandleSongPosition(onSongPosition);
+  MIDI.setHandleSongSelect(onSongSelect);
 
   // Init display
 #if HAS_DISPLAY == 1
@@ -465,6 +467,23 @@ void onContinue() {
 void onClock() {
   midi_message message;
   message.status = MIDI_TIME_CLOCK;
+  send(message);
+}
+
+void onSongPosition(unsigned int value){
+    midi_message message;
+  message.status = MIDI_SONG_POS_POINTER;
+  // Ensure value is within the valid 14-bit range (0 - 16383)
+  value = value & 0x3FFF;  // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
+
+  // Split the 14-bit value into LSB and MSB (each 7 bits)
+  message.firstByte = value & 0x7F;          // LSB: lower 7 bits of the pitch bend value
+  message.secondByte = (value >> 7) & 0x7F;  // MSB: upper 7 bits of the pitch bend value
+  send(message);
+}
+void onSongSelect(byte value){
+  message.status = MIDI_SONG_SELECT;
+  message.firstByte = value;
   send(message);
 }
 

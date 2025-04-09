@@ -14,7 +14,7 @@ public:
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   }
-  
+
   static void OnDataRecvStatic(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
     if (_instance)
@@ -28,18 +28,18 @@ public:
     _instance = this;
     // Initialize peers array
     _peersCount = 0;
-    
+
     // Initialize ESP-NOW FIRST
     if (esp_now_init() != ESP_OK)
     {
       Serial.println("Error initializing ESP-NOW");
       return;
     }
-    
+
     // Register callbacks AFTER initialization
     esp_now_register_send_cb(callback);
     esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecvStatic));
-    
+
     // Add the initial broadcast address as first peer AFTER ESP-NOW is initialized
     addPeer(broadcastAddress);
   }
@@ -47,23 +47,26 @@ public:
   // Add a new peer
   bool addPeer(const uint8_t macAddress[6])
   {
-    if (_peersCount >= MAX_PEERS) {
+    if (_peersCount >= MAX_PEERS)
+    {
       Serial.println("Maximum number of peers reached");
       return false;
     }
 
     // Debug print
     Serial.print("Adding peer: ");
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++)
+    {
       Serial.print(macAddress[i], HEX);
-      if (i < 5) Serial.print(":");
+      if (i < 5)
+        Serial.print(":");
     }
     Serial.println();
 
     // Create the peer info structure
     esp_now_peer_info_t peerInfo;
     memset(&peerInfo, 0, sizeof(peerInfo));
-    memcpy(peerInfo.peer_addr, macAddress, 6);  // Always use exact size (6 bytes)
+    memcpy(peerInfo.peer_addr, macAddress, 6); // Always use exact size (6 bytes)
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
 
@@ -83,20 +86,24 @@ public:
   }
 
   // Send to all peers
-  esp_err_t sendToAllPeers(const uint8_t *data, size_t len) {
+  esp_err_t sendToAllPeers(const uint8_t *data, size_t len)
+  {
     esp_err_t result = ESP_OK;
-    
-    if (_peersCount == 0) {
+
+    if (_peersCount == 0)
+    {
       Serial.println("No peers registered!");
       return ESP_FAIL;
     }
-    
-    for (int i = 0; i < _peersCount; i++) {
-      
+
+    for (int i = 0; i < _peersCount; i++)
+    {
+
       esp_err_t err = esp_now_send(_peers[i], data, len);
-      if (err != ESP_OK) {
+      if (err != ESP_OK)
+      {
         result = err; // Return last error if any
-      } 
+      }
     }
     return result;
   }
@@ -204,6 +211,33 @@ public:
     message.status = MIDI_TIME_CLOCK;
     return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
+  esp_err_t sendSongPosition(uint16_t value)
+  {
+    midi_message message;
+    message.status = MIDI_SONG_POS_POINTER;
+    // Ensure value is within the valid 14-bit range (0 - 16383)
+    value = value & 0x3FFF; // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
+
+    // Split the 14-bit value into LSB and MSB (each 7 bits)
+    message.firstByte = value & 0x7F;         // LSB: lower 7 bits of the pitch bend value
+    message.secondByte = (value >> 7) & 0x7F; // MSB: upper 7 bits of the pitch bend value
+
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
+  }
+
+  esp_err_t sendSongSelect(uint8_t value)
+  {
+    midi_message message;
+    message.status = MIDI_SONG_SELECT;
+    // Ensure value is within the valid 14-bit range (0 - 16383)
+    value = value & 0x3FFF; // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
+
+    // Split the 14-bit value into LSB and MSB (each 7 bits)
+    message.firstByte = value & 0x7F;         // LSB: lower 7 bits of the pitch bend value
+    message.secondByte = (value >> 7) & 0x7F; // MSB: upper 7 bits of the pitch bend value
+
+    return sendToAllPeers((uint8_t *)&message, sizeof(message));
+  }
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
@@ -270,6 +304,19 @@ public:
         onClockHandler();
       break;
     }
+    case MIDI_SONG_POS_POINTER:
+    {
+      int songPosValue = (message.secondByte << 7) | message.firstByte;
+      if (onSongPositionHandler)
+        onSongPositionHandler(songPosValue);
+      break;
+    }
+    case MIDI_SONG_SELECT:
+    {
+      if (onSongSelectHandler)
+        onSongSelectHandler(message.firstByte);
+      break;
+    }
     }
   }
   void setHandleNoteOn(void (*callback)(byte channel, byte note, byte velocity))
@@ -322,11 +369,19 @@ public:
   {
     onClockHandler = callback;
   }
+  void setHandleSongPosition(void (*callback)(int value))
+  {
+    onSongPositionHandler = callback;
+  }
+  void setHandleSongSelect(void (*callback)(int value))
+  {
+    onSongSelectHandler = callback;
+  }
 
 private:
   static const int MAX_PEERS = 20;
-  uint8_t _peers[MAX_PEERS][6]; // Array to store MAC addresses of peers
-  int _peersCount;              // Current number of peers
+  uint8_t _peers[MAX_PEERS][6];   // Array to store MAC addresses of peers
+  int _peersCount;                // Current number of peers
   static esp_now_midi *_instance; // Static pointer to hold the instance
 
   // MIDI Handlers
@@ -341,6 +396,8 @@ private:
   void (*onStopHandler)() = nullptr;
   void (*onContinueHandler)() = nullptr;
   void (*onClockHandler)() = nullptr;
+  void (*onSongPositionHandler)(int value) = nullptr;
+  void (*onSongSelectHandler)(int value) = nullptr;
 };
 
 esp_now_midi *esp_now_midi::_instance = nullptr;
