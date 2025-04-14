@@ -173,7 +173,12 @@ void updateDisplay() {
   esp_now_peer_num_t peerInfo;
   esp_now_get_peer_num(&peerInfo);
 
-  auto macStr = String(baseMac[0], HEX) + ":" + String(baseMac[1], HEX) + ":" + String(baseMac[2], HEX) + ":" + String(baseMac[3], HEX) + ":" + String(baseMac[4], HEX) + ":" + String(baseMac[5], HEX);
+  //auto macStr = String(baseMac[0], HEX) + ":" + String(baseMac[1], HEX) + ":" + String(baseMac[2], HEX) + ":" + String(baseMac[3], HEX) + ":" + String(baseMac[4], HEX) + ":" + String(baseMac[5], HEX);
+  char macStr[18]; // 6 bytes × 2 chars + 5 colons + null terminator
+  sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", 
+        baseMac[0], baseMac[1], baseMac[2], 
+        baseMac[3], baseMac[4], baseMac[5]);
+
 
   display.clearDisplay();
   display.setTextSize(1);
