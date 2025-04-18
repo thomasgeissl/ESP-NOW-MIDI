@@ -33,6 +33,7 @@ if you wanna put them into a case, you can probably find 3d models online, here 
   * mpu6050 (gy521) - accelerometer, gyro, temperature
   * vl53l0x - time of flight distance sensor
 * **client_dac_i2s (wip)** - synth that can be controlled via dongle, e.g. send midi notes from a DAW to the dongle midi device
+* **client_waveshare-esp32-s3-relay-6ch** - simple relay controller that listens to note on/off messages, e.g. control solenoids 
 
 ## dependencies
 * dependencies for the library should be automatically installed
