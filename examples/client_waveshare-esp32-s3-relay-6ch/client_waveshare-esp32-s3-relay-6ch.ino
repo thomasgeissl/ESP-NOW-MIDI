@@ -19,14 +19,14 @@ void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void onNoteOn(byte channel, byte note, byte velocity) {
   Serial.printf("Note On - Channel: %d, Note: %d, Velocity: %d\n", channel, note, velocity);
   if (note >= 60 && note <= 65) {
-    digitalWrite(note - 60, HIGH);
+    digitalWrite(_relayPins[note - 60], HIGH);
   }
 }
 
 void onNoteOff(byte channel, byte note, byte velocity) {
   Serial.printf("Note Off - Channel: %d, Note: %d, Velocity: %d\n", channel, note, velocity);
   if (note >= 60 && note <= 65) {
-    digitalWrite(note - 60, LOW);
+    digitalWrite(_relayPins[note - 60], LOW);
   }
 }
 
