@@ -93,6 +93,9 @@ void onPitchBend(byte channel, int value);
 void onStart();
 void onStop();
 void onContinue();
+void onClock();
+void onSongSelect(byte value);
+void onSongPosition(unsigned int value);
 
 esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message);
 void send(midi_message message);
