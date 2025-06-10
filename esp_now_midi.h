@@ -1,4 +1,5 @@
 #pragma once
+#include "./version.h"
 #include <esp_now.h>
 #include "./midiHelpers.h"
 
