@@ -190,7 +190,9 @@ void updateDisplay() {
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
   display.println(String("mac:") + macStr);
-  display.print(String("connections:") + String(peerCount));
+  display.print("v");
+  display.print(version);
+  display.print(String(" con:") + String(peerCount));
   display.println(String(" t:") + String(millis() / 1000));
 
   int lineY = 18;
