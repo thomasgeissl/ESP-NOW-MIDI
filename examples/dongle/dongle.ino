@@ -18,6 +18,8 @@ unsigned long updateDisplayTimeStamp = 0;
 const long updateDisplayInterval = 1000;
 #endif
 
+String version = getVersion();
+
 Adafruit_USBD_MIDI usb_midi;
 MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
 
@@ -199,6 +201,10 @@ void updateDisplay() {
     int index = (messageIndex + i) % MAX_HISTORY;
     auto statusString = String("n/a");
     auto channel = String(messageHistory[index].message.channel, HEX);
+    channel.toUpperCase();
+    if(channel == "10"){
+      channel = "G";
+    }
 
     char firstByte[4];  // Buffer to store formatted byte (3 characters + null terminator)
     sprintf(firstByte, "%3d", messageHistory[index].message.firstByte);
