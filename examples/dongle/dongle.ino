@@ -390,7 +390,7 @@ void onDataRecv(const esp_now_recv_info_t *messageInfo, const uint8_t *incomingD
       }
     case MIDI_STOP:
       {
-        MIDI.sendStart();
+        MIDI.sendStop();
         break;
       }
     case MIDI_CONTINUE:
