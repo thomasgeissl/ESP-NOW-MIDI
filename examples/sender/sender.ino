@@ -7,10 +7,17 @@
 uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 
 esp_now_midi ESP_NOW_MIDI;
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  // Serial.print("Custom Callback - Status: ");
-  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
+
+// there has been a change in the callback signature with esp32 board version 3.3.0, hence this is here for backwards compatibility
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
+void customOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
 }
+#else
+void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
+}
+#endif
 
 void onNoteOn(byte channel, byte note, byte velocity) {
   Serial.printf("Note On - Channel: %d, Note: %d, Velocity: %d\n", channel, note, velocity);
