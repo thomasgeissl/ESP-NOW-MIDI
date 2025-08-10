@@ -11,11 +11,17 @@ esp_now_midi ESP_NOW_MIDI;
 
 AceButton _buttons[NUMBER_OF_BUTTONS];
 
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
-{
-  // Serial.print("Custom Callback - Status: ");
-  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
+// there has been a change in the callback signature with esp32 board version 3.3.0, hence this is here for backwards compatibility
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
+void customOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
 }
+#else
+void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
+}
+#endif
+
 void handleEvent(AceButton *, uint8_t, uint8_t);
 
 void setup()
