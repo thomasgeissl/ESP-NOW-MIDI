@@ -33,10 +33,17 @@ uint8_t peerMacAddresses[DONGLE_MAX_PEERS][6];
 int peerCount = 0;  // Keeps track of how many peers have been added
 
 typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
-static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  // Serial.print("\r\nLast Packet Send Status:\t");
-  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+
+// Callback for send events — adapt to ESP32 core version
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
+static void DefaultOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
+#else
+static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+#endif
 
 struct MACAddress {
   uint8_t bytes[MAC_ADDR_LEN];
