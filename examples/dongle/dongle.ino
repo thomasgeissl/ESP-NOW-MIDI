@@ -36,7 +36,7 @@ typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t 
 
 // Callback for send events — adapt to ESP32 core version
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-static void DefaultOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
+static void DefaultOnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 #else
@@ -114,7 +114,6 @@ void setup() {
   delay(1000);
   Serial.printf("ESP-IDF Version: %s\n", esp_get_idf_version());
 
-
   // Init ESP-NOW
   WiFi.mode(WIFI_STA);
   readMacAddress();
@@ -186,10 +185,10 @@ void updateDisplay() {
   esp_now_get_peer_num(&peerInfo);
 
   //auto macStr = String(baseMac[0], HEX) + ":" + String(baseMac[1], HEX) + ":" + String(baseMac[2], HEX) + ":" + String(baseMac[3], HEX) + ":" + String(baseMac[4], HEX) + ":" + String(baseMac[5], HEX);
-  char macStr[18]; // 6 bytes × 2 chars + 5 colons + null terminator
-  sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", 
-        baseMac[0], baseMac[1], baseMac[2], 
-        baseMac[3], baseMac[4], baseMac[5]);
+  char macStr[18];  // 6 bytes × 2 chars + 5 colons + null terminator
+  sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+          baseMac[0], baseMac[1], baseMac[2],
+          baseMac[3], baseMac[4], baseMac[5]);
 
 
   display.clearDisplay();
@@ -211,7 +210,7 @@ void updateDisplay() {
     auto statusString = String("n/a");
     auto channel = String(messageHistory[index].message.channel, HEX);
     channel.toUpperCase();
-    if(channel == "10"){
+    if (channel == "10") {
       channel = "G";
     }
 
@@ -493,8 +492,8 @@ void onClock() {
   send(message);
 }
 
-void onSongPosition(unsigned int value){
-    midi_message message;
+void onSongPosition(unsigned int value) {
+  midi_message message;
   message.status = MIDI_SONG_POS_POINTER;
   // Ensure value is within the valid 14-bit range (0 - 16383)
   value = value & 0x3FFF;  // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
@@ -504,7 +503,7 @@ void onSongPosition(unsigned int value){
   message.secondByte = (value >> 7) & 0x7F;  // MSB: upper 7 bits of the pitch bend value
   send(message);
 }
-void onSongSelect(byte value){
+void onSongSelect(byte value) {
   message.status = MIDI_SONG_SELECT;
   message.firstByte = value;
   send(message);

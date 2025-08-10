@@ -9,6 +9,10 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
 * the dongle shows up as a class compliant midi controller
 * use it with MAX, pd, any DAW, processing, openFrameworks, any game engine that supports MIDI, ... or even in the browser
 
+## breaking changes
+ESP32 Boards version 3.3.0 require library version 0.6.0 or higher for compatibility.
+Please note that ESP-NOW function signatures have changed in this version.
+
 ## usage
 1. Upload the print_mac example to an ESP32-S2 Mini board. The MAC address will be printed to via serial, or if you have a display connect to the dongle, you can skip this step, as the mac address will be printed on the display.
 1. Upload the dongle example to an ESP32-S2 Mini board.
