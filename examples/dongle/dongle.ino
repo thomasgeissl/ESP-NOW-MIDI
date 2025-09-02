@@ -185,25 +185,27 @@ void updateDisplay() {
   esp_now_get_peer_num(&peerInfo);
 
   // Use static buffers to avoid heap allocations
-  static char macStr[18];  // Static to avoid repeated allocation
+  static char macStr[18];         // Static to avoid repeated allocation
   static char displayBuffer[64];  // Reusable buffer for display strings
-  
+
   // Format MAC address once
   snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-          baseMac[0], baseMac[1], baseMac[2],
-          baseMac[3], baseMac[4], baseMac[5]);
+           baseMac[0], baseMac[1], baseMac[2],
+           baseMac[3], baseMac[4], baseMac[5]);
 
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
-  
+
   // Use snprintf instead of String concatenation
   snprintf(displayBuffer, sizeof(displayBuffer), "mac:%s", macStr);
   display.println(displayBuffer);
-  
-  snprintf(displayBuffer, sizeof(displayBuffer), "v%s con:%d t:%lu", 
-           version.c_str(), peerCount, millis() / 1000);
+
+  unsigned long displayUptime = (millis() / 1000) % 86400;  // Reset to 0 every 24h
+
+  snprintf(displayBuffer, sizeof(displayBuffer), "v%s con:%d t:%lu",
+           version.c_str(), peerCount, displayUptime);
   display.println(displayBuffer);
 
   int lineY = 18;
@@ -212,18 +214,18 @@ void updateDisplay() {
   int yOffset = 22;  // Start rendering messages below the MAC address
   for (int i = 0; i < MAX_HISTORY; i++) {
     int index = (messageIndex + i) % MAX_HISTORY;
-    
+
     // Only display non-empty messages
     if (messageHistory[index].timestamp == 0) {
       continue;
     }
-    
+
     // Use static buffers for message formatting
     static char statusString[8];
     static char channel[3];
     static char firstByte[4];
     static char secondByte[4];
-    
+
     // Format channel
     if (messageHistory[index].message.channel == 16) {
       strcpy(channel, "G");
