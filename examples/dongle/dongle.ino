@@ -184,22 +184,27 @@ void updateDisplay() {
   esp_now_peer_num_t peerInfo;
   esp_now_get_peer_num(&peerInfo);
 
-  //auto macStr = String(baseMac[0], HEX) + ":" + String(baseMac[1], HEX) + ":" + String(baseMac[2], HEX) + ":" + String(baseMac[3], HEX) + ":" + String(baseMac[4], HEX) + ":" + String(baseMac[5], HEX);
-  char macStr[18];  // 6 bytes × 2 chars + 5 colons + null terminator
-  sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+  // Use static buffers to avoid heap allocations
+  static char macStr[18];  // Static to avoid repeated allocation
+  static char displayBuffer[64];  // Reusable buffer for display strings
+  
+  // Format MAC address once
+  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
           baseMac[0], baseMac[1], baseMac[2],
           baseMac[3], baseMac[4], baseMac[5]);
-
 
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0, 0);
-  display.println(String("mac:") + macStr);
-  display.print("v");
-  display.print(version);
-  display.print(String(" con:") + String(peerCount));
-  display.println(String(" t:") + String(millis() / 1000));
+  
+  // Use snprintf instead of String concatenation
+  snprintf(displayBuffer, sizeof(displayBuffer), "mac:%s", macStr);
+  display.println(displayBuffer);
+  
+  snprintf(displayBuffer, sizeof(displayBuffer), "v%s con:%d t:%lu", 
+           version.c_str(), peerCount, millis() / 1000);
+  display.println(displayBuffer);
 
   int lineY = 18;
   display.drawLine(0, lineY, SCREEN_WIDTH, lineY, WHITE);
@@ -207,109 +212,95 @@ void updateDisplay() {
   int yOffset = 22;  // Start rendering messages below the MAC address
   for (int i = 0; i < MAX_HISTORY; i++) {
     int index = (messageIndex + i) % MAX_HISTORY;
-    auto statusString = String("n/a");
-    auto channel = String(messageHistory[index].message.channel, HEX);
-    channel.toUpperCase();
-    if (channel == "10") {
-      channel = "G";
+    
+    // Only display non-empty messages
+    if (messageHistory[index].timestamp == 0) {
+      continue;
+    }
+    
+    // Use static buffers for message formatting
+    static char statusString[8];
+    static char channel[3];
+    static char firstByte[4];
+    static char secondByte[4];
+    
+    // Format channel
+    if (messageHistory[index].message.channel == 16) {
+      strcpy(channel, "G");
+    } else {
+      snprintf(channel, sizeof(channel), "%X", messageHistory[index].message.channel);
     }
 
-    char firstByte[4];  // Buffer to store formatted byte (3 characters + null terminator)
-    sprintf(firstByte, "%3d", messageHistory[index].message.firstByte);
-    char secondByte[4];  // Buffer to store formatted byte (3 characters + null terminator)
-    sprintf(secondByte, "%3d", messageHistory[index].message.secondByte);
+    // Format data bytes
+    snprintf(firstByte, sizeof(firstByte), "%3d", messageHistory[index].message.firstByte);
+    snprintf(secondByte, sizeof(secondByte), "%3d", messageHistory[index].message.secondByte);
 
+    // Determine status string and clear data bytes if not needed
     switch (messageHistory[index].message.status) {
       case MIDI_NOTE_ON:
-        {
-          statusString = "N_ON";
-          break;
-        }
+        strcpy(statusString, "N_ON  ");
+        break;
       case MIDI_NOTE_OFF:
-        {
-          statusString = "N_OFF";
-          break;
-        }
+        strcpy(statusString, "N_OFF ");
+        break;
       case MIDI_CONTROL_CHANGE:
-        {
-          statusString = "CC";
-          break;
-        }
+        strcpy(statusString, "CC    ");
+        break;
       case MIDI_PROGRAM_CHANGE:
-        {
-          statusString = "PC";
-          break;
-        }
+        strcpy(statusString, "PC    ");
+        break;
       case MIDI_PITCH_BEND:
-        {
-          statusString = "PBEND";
-          break;
-        }
+        strcpy(statusString, "PBEND ");
+        break;
       case MIDI_AFTERTOUCH:
-        {
-          statusString = "AFTER";
-          break;
-        }
+        strcpy(statusString, "AFTER ");
+        break;
       case MIDI_POLY_AFTERTOUCH:
-        {
-          statusString = "PAFTER";
-          break;
-        }
+        strcpy(statusString, "PAFTER");
+        break;
       case MIDI_START:
-        {
-          statusString = "START";
-          channel = "";
-          firstByte[0] = '\0';
-          secondByte[0] = '\0';
-          break;
-        }
+        strcpy(statusString, "START ");
+        channel[0] = '\0';
+        firstByte[0] = '\0';
+        secondByte[0] = '\0';
+        break;
       case MIDI_STOP:
-        {
-          statusString = "STOP";
-          channel = "";
-          firstByte[0] = '\0';
-          secondByte[0] = '\0';
-          break;
-        }
+        strcpy(statusString, "STOP  ");
+        channel[0] = '\0';
+        firstByte[0] = '\0';
+        secondByte[0] = '\0';
+        break;
       case MIDI_CONTINUE:
-        {
-          statusString = "CONT";
-          channel = "";
-          firstByte[0] = '\0';
-          secondByte[0] = '\0';
-          break;
-        }
-
+        strcpy(statusString, "CONT  ");
+        channel[0] = '\0';
+        firstByte[0] = '\0';
+        secondByte[0] = '\0';
+        break;
       default:
+        strcpy(statusString, "n/a   ");
         break;
     }
-    while (statusString.length() < 6) {
-      statusString += " ";
+
+    // Display the message line
+    display.setCursor(0, yOffset);
+    if (messageHistory[index].outgoing) {
+      display.print("-> ");
+    } else {
+      display.print("<- ");
     }
+    display.print(channel);
+    display.print(" ");
+    display.print(statusString);
+    display.print(" ");
+    display.print(firstByte);
+    display.print(" ");
+    display.print(secondByte);
 
-    // Only display non-empty messages
-    if (messageHistory[index].timestamp > 0) {
-      display.setCursor(0, yOffset);
-      if (messageHistory[index].outgoing) {
-        display.print("-> ");
-      } else {
-        display.print("<- ");
-      }
-      display.print(channel);
-      display.print(" ");
-      display.print(statusString);
-      display.print(" ");
+    yOffset += 8;  // Move to the next line (8 pixels down)
 
-      display.print(firstByte);
-      display.print(" ");
-      display.print(secondByte);
-
-      yOffset += 8;  // Move to the next line (8 pixels down)
-
-      // Check if there's space left on the display
-      if (yOffset > SCREEN_HEIGHT - 8) {
-        break;  // Prevent writing off the screen
-      }
+    // Check if there's space left on the display
+    if (yOffset > SCREEN_HEIGHT - 8) {
+      break;  // Prevent writing off the screen
     }
   }
 
