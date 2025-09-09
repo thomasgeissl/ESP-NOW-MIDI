@@ -1,23 +1,10 @@
 #include "config.h"
-#include <esp_now.h>
-#include <WiFi.h>
-#include "esp_now_midi.h"
+#include "enomik_client.h"
 
 // on the dongle: run the print_mac firmware and paste it here
 uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 
-esp_now_midi ESP_NOW_MIDI;
-
-// there has been a change in the callback signature with esp32 board version 3.3.0, hence this is here for backwards compatibility
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-void customOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#else
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#endif
+enomik::Client _client;
 
 void onNoteOn(byte channel, byte note, byte velocity) {
   Serial.printf("Note On - Channel: %d, Note: %d, Velocity: %d\n", channel, note, velocity);
@@ -58,20 +45,19 @@ void setup() {
     pinMode(_relayPins[i], OUTPUT);
   }
 
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
-  // ESP_NOW_MIDI.setup(peerMacAddress); //or get rid of the custom send function and use the default one
+  _client.begin();
+  _client.addPeer(peerMacAddress);
 
-  ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
-  ESP_NOW_MIDI.setHandleNoteOff(onNoteOff);
-  ESP_NOW_MIDI.setHandleControlChange(onControlChange);
-  ESP_NOW_MIDI.setHandleProgramChange(onProgramChange);
-  ESP_NOW_MIDI.setHandlePitchBend(onPitchBend);
-  ESP_NOW_MIDI.setHandleAfterTouchChannel(onAfterTouch);
-  ESP_NOW_MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+  _client.midi.setHandleNoteOn(onNoteOn);
+  _client.midi.setHandleNoteOff(onNoteOff);
+  _client.midi.setHandleControlChange(onControlChange);
+  _client.midi.setHandleProgramChange(onProgramChange);
+  _client.midi.setHandlePitchBend(onPitchBend);
+  _client.midi.setHandleAfterTouchChannel(onAfterTouch);
+  _client.midi.setHandleAfterTouchPoly(onPolyAfterTouch);
 
   //register at the dongle, by sending a message
-  ESP_NOW_MIDI.sendControlChange(127, 127, 16);
+  _client.midi.sendControlChange(127, 127, 16);
 }
 
 void loop() {

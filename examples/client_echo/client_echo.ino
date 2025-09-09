@@ -1,72 +1,53 @@
-#include <esp_now.h>
-#include <WiFi.h>
-#include "esp_now_midi.h"
+#include "enomik_client.h"
 
 
 // on the dongle: run the print_mac firmware and paste it here
-uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF5, 0x29, 0x24 };
-esp_now_midi ESP_NOW_MIDI;
-
-// there has been a change in the callback signature with esp32 board version 3.3.0, hence this is here for backwards compatibility
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-void customOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#else
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#endif
-
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  // Serial.print("Custom Callback - Status: ");
-  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
+uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+enomik::Client _client;
 
 void onNoteOn(byte channel, byte note, byte velocity) {
-  ESP_NOW_MIDI.sendNoteOn(note, velocity, channel);
+  _client.midi.sendNoteOn(note, velocity, channel);
 }
 
 void onNoteOff(byte channel, byte note, byte velocity) {
-  ESP_NOW_MIDI.sendNoteOff(note, velocity, channel);
+  _client.midi.sendNoteOff(note, velocity, channel);
 }
 
 void onControlChange(byte channel, byte control, byte value) {
-  ESP_NOW_MIDI.sendControlChange(control, value, channel);
+  _client.midi.sendControlChange(control, value, channel);
 }
 
 void onProgramChange(byte channel, byte program) {
-  ESP_NOW_MIDI.sendProgramChange(program, channel);
+  _client.midi.sendProgramChange(program, channel);
 }
 
 void onPitchBend(byte channel, int value) {
-  ESP_NOW_MIDI.sendPitchBend(value, channel);
+  _client.midi.sendPitchBend(value, channel);
 }
 void onAfterTouch(byte channel, byte value) {
-  ESP_NOW_MIDI.sendAfterTouch(value, channel);
+  _client.midi.sendAfterTouch(value, channel);
 }
 void onPolyAfterTouch(byte channel, byte note, byte value) {
-  ESP_NOW_MIDI.sendAfterTouch(note, value, channel);
+  _client.midi.sendAfterTouch(note, value, channel);
 }
 
 void setup() {
   Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
-  // ESP_NOW_MIDI.setup(destinationMacAddress); //or get rid of the custom send function and use the default one
+  _client.begin();
+  _client.addPeer(peerMacAddress);
 
-  ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
-  ESP_NOW_MIDI.setHandleNoteOff(onNoteOff);
-  ESP_NOW_MIDI.setHandleControlChange(onControlChange);
-  ESP_NOW_MIDI.setHandleProgramChange(onProgramChange);
-  ESP_NOW_MIDI.setHandlePitchBend(onPitchBend);
-  ESP_NOW_MIDI.setHandleAfterTouchChannel(onAfterTouch);
-  ESP_NOW_MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+  _client.midi.setHandleNoteOn(onNoteOn);
+  _client.midi.setHandleNoteOff(onNoteOff);
+  _client.midi.setHandleControlChange(onControlChange);
+  _client.midi.setHandleProgramChange(onProgramChange);
+  _client.midi.setHandlePitchBend(onPitchBend);
+  _client.midi.setHandleAfterTouchChannel(onAfterTouch);
+  _client.midi.setHandleAfterTouchPoly(onPolyAfterTouch);
 
 
   //register as a client by sending any message
   //this is needed in this case, as the client will stay unkown to the dongle until the first message is sent.
-  ESP_NOW_MIDI.sendControlChange(127, 127, 16);
+  _client.midi.sendControlChange(127, 127, 16);
 }
 
 

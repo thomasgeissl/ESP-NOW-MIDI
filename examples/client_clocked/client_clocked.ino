@@ -1,35 +1,22 @@
-#include <esp_now.h>
-#include <WiFi.h>
-#include "esp_now_midi.h"
+#include "enomik_client.h"
 
 
 // on the dongle: run the print_mac firmware and paste it here
-uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
+uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
 
-esp_now_midi ESP_NOW_MIDI;
-
-// there has been a change in the callback signature with esp32 board version 3.3.0, hence this is here for backwards compatibility
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-void customOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#else
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#endif
+enomik::Client _client;
 
 
 void onStart() {
-  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(60, 127, 1);
+  esp_err_t result = _client.midi.sendNoteOn(60, 127, 1);
   Serial.println("start");
 }
 void onStop() {
-  esp_err_t result = ESP_NOW_MIDI.sendNoteOff(60, 0, 1);
+  esp_err_t result = _client.midi.sendNoteOff(60, 0, 1);
   Serial.println("stop");
 }
 void onContinue() {
-  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(60, 127, 1);
+  esp_err_t result = _client.midi.sendNoteOn(60, 127, 1);
   Serial.println("continue");
 }
 
@@ -38,13 +25,13 @@ void onClock() {
 }
 
 void onSongPosition(int value) {
-  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(127, 127, 1);
+  esp_err_t result = _client.midi.sendNoteOn(127, 127, 1);
   Serial.print("song position: ");
   Serial.print(value);
 }
 
 void onSongSelect(int value) {
-  esp_err_t result = ESP_NOW_MIDI.sendNoteOn(126, 127, 1);
+  esp_err_t result = _client.midi.sendNoteOn(126, 127, 1);
   Serial.print("song: ");
   Serial.print(value);
 }
@@ -59,21 +46,20 @@ void setup() {
   Serial.println("Serial started");
 
 
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
-  // ESP_NOW_MIDI.setup(destinationMacAddress); //or get rid of the custom send function and use the default one
+  _client.begin();
+  _client.addPeer(peerMacAddress);
 
-  ESP_NOW_MIDI.setHandleStart(onStart);
-  ESP_NOW_MIDI.setHandleStop(onStop);
-  ESP_NOW_MIDI.setHandleContinue(onContinue);
-  ESP_NOW_MIDI.setHandleClock(onClock);
-  ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
-  ESP_NOW_MIDI.setHandleSongPosition(onSongPosition);
-  ESP_NOW_MIDI.setHandleSongSelect(onSongSelect);
+  _client.midi.setHandleStart(onStart);
+  _client.midi.setHandleStop(onStop);
+  _client.midi.setHandleContinue(onContinue);
+  _client.midi.setHandleClock(onClock);
+  _client.midi.setHandleNoteOn(onNoteOn);
+  _client.midi.setHandleSongPosition(onSongPosition);
+  _client.midi.setHandleSongSelect(onSongSelect);
 
   //send any midi message to register at the dongle
   delay(1000);
-  esp_err_t result = ESP_NOW_MIDI.sendControlChange(127, 127, 16);
+  esp_err_t result = _client.midi.sendControlChange(127, 127, 16);
 }
 
 void loop() {

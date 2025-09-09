@@ -1,4 +1,5 @@
 #pragma once
+#define MAX_PEERS 20
 #include "./version.h"
 #include <esp_now.h>
 #include <esp_wifi.h> // Needed for wifi_tx_info_t in newer versions
@@ -63,7 +64,7 @@ public:
     }
   #endif
 
-  void setup(const uint8_t broadcastAddress[6], DataSentCallback callback = DefaultOnDataSent) {
+  void setup(DataSentCallback callback = DefaultOnDataSent) {
     _instance = this;
     userDataSentCallback = callback;
     
@@ -85,9 +86,6 @@ public:
     #else
       esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecvStatic));
     #endif
-
-    // Add the initial broadcast address as first peer AFTER ESP-NOW is initialized
-    addPeer(broadcastAddress);
   }
 
   // Add a new peer
@@ -364,7 +362,6 @@ public:
   }
 
 private:
-  static const int MAX_PEERS = 20;
   uint8_t _peers[MAX_PEERS][6];   // Array to store MAC addresses of peers
   int _peersCount;                // Current number of peers
   static esp_now_midi *_instance; // Static pointer to hold the instance

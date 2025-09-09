@@ -1,7 +1,5 @@
 #include "config.h"
-#include <esp_now.h>
-#include <WiFi.h>
-#include "esp_now_midi.h"
+#include "enomik_client.h"
 
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_VL53L0X.h>
@@ -12,8 +10,8 @@
 // on the dongle: run the print_mac firmware and paste it here
 uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 
-esp_now_midi ESP_NOW_MIDI;
 
+enomik::Client _client;
 Adafruit_MPU6050 _mpu;
 Adafruit_VL53L0X _lox = Adafruit_VL53L0X();
 
@@ -24,17 +22,6 @@ bool _vl53LoxConnected = false;
 
 int _soloCC = -1;
 
-
-// there has been a change in the callback signature with esp32 board version 3.3.0, hence this is here for backwards compatibility
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-void customOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#else
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#endif
 
 void onNoteOn(byte channel, byte note, byte velocity) {
   Serial.printf("Note On - Channel: %d, Note: %d, Velocity: %d\n", channel, note, velocity);
@@ -74,19 +61,18 @@ bool shouldSendControlChangeMessage(int controller) {
 
 void setup() {
   Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
-  // ESP_NOW_MIDI.setup(destinationMacAddress); //or get rid of the custom send function and use the default one
+  _client.begin();
+  _client.addPeer(peerMacAddress);
 
   // all of these midi handlers are optional, depends on the usecase, very often you just wanna send data and not receive
   // e.g. this can be used for calibration, or maybe you wanna connect an amp via i2s and render some sound
-  ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
-  ESP_NOW_MIDI.setHandleNoteOff(onNoteOff);
-  ESP_NOW_MIDI.setHandleControlChange(onControlChange);
-  ESP_NOW_MIDI.setHandleProgramChange(onProgramChange);
-  ESP_NOW_MIDI.setHandlePitchBend(onPitchBend);
-  ESP_NOW_MIDI.setHandleAfterTouchChannel(onAfterTouch);
-  ESP_NOW_MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+  _client.midi.setHandleNoteOn(onNoteOn);
+  _client.midi.setHandleNoteOff(onNoteOff);
+  _client.midi.setHandleControlChange(onControlChange);
+  _client.midi.setHandleProgramChange(onProgramChange);
+  _client.midi.setHandlePitchBend(onPitchBend);
+  _client.midi.setHandleAfterTouchChannel(onAfterTouch);
+  _client.midi.setHandleAfterTouchPoly(onPolyAfterTouch);
 
 
   Serial.println("setting up sensors");
@@ -116,22 +102,22 @@ void loop() {
     Serial.print(a.acceleration.x);
     // esp_err_t result =
     if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_X)) {
-      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ACCELERATION_X, map(a.acceleration.x, -10, 10, 0, 127), 1);
+      _client.midi.sendControlChange(CC_MPU6050_ACCELERATION_X, map(a.acceleration.x, -10, 10, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_Y)) {
-      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ACCELERATION_Y, map(a.acceleration.y, -10, 10, 0, 127), 1);
+      _client.midi.sendControlChange(CC_MPU6050_ACCELERATION_Y, map(a.acceleration.y, -10, 10, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_Z)) {
-      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ACCELERATION_Z, map(a.acceleration.z, -10, 10, 0, 127), 1);
+      _client.midi.sendControlChange(CC_MPU6050_ACCELERATION_Z, map(a.acceleration.z, -10, 10, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_X)) {
-      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ORIENTATION_X, map(g.orientation.x, -5000, 5000, 0, 127), 1);
+      _client.midi.sendControlChange(CC_MPU6050_ORIENTATION_X, map(g.orientation.x, -5000, 5000, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_Y)) {
-      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ORIENTATION_Y, map(g.orientation.y, -5000, 5000, 0, 127), 1);
+      _client.midi.sendControlChange(CC_MPU6050_ORIENTATION_Y, map(g.orientation.y, -5000, 5000, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_Z)) {
-      ESP_NOW_MIDI.sendControlChange(CC_MPU6050_ORIENTATION_Z, map(g.orientation.z, -5000, 5000, 0, 127), 1);
+      _client.midi.sendControlChange(CC_MPU6050_ORIENTATION_Z, map(g.orientation.z, -5000, 5000, 0, 127), 1);
     }
   }
   return;

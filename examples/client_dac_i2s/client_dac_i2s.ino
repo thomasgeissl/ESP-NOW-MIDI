@@ -1,7 +1,5 @@
 #define MOZZI_OUTPUT_I2S_DAC  // Enable I2S output for MAX98357A
-#include <esp_now.h>
-#include <WiFi.h>
-#include "esp_now_midi.h"
+#include "enomik_client.h"
 #include <driver/i2s.h>
 // before including Mozzi.h, configure external audio output mode:
 #include "MozziConfigValues.h"  // for named option values
@@ -23,17 +21,8 @@
 // on the dongle: run the print_mac firmware and paste it here
 uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
 
-esp_now_midi ESP_NOW_MIDI;
-// there has been a change in the callback signature with esp32 board version 3.3.0, hence this is here for backwards compatibility
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-void customOnDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#else
-void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Failure");
-}
-#endif
+
+enomik::Client _client;
 
 Oscil<2048, AUDIO_RATE> aSin(SIN2048_DATA);
 ADSR<CONTROL_RATE, AUDIO_RATE> envelope;
@@ -85,13 +74,10 @@ void audioOutput(const AudioOutput f) // f is a structure containing both channe
 }
 
 void setup() {
-  Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
-
-  //setup esp now midi
-  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
-  ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
-  ESP_NOW_MIDI.setHandleNoteOff(onNoteOff);
+  _client.begin();
+  _client.addPeer(peerMacAddress);
+  _client.midi.setHandleNoteOn(onNoteOn);
+  _client.midi.setHandleNoteOff(onNoteOff);
 
   //setup audio
   envelope.setADLevels(255, 64);
@@ -101,7 +87,7 @@ void setup() {
 
   //register esp now midi client
   delay(1000);
-  ESP_NOW_MIDI.sendControlChange(127, 127, 16);
+  _client.midi.sendControlChange(127, 127, 16);
 }
 
 void updateControl() {
@@ -113,6 +99,5 @@ AudioOutput updateAudio() {
 }
 
 void loop() {
-  Serial.println("loop");
   audioHook();
 }
