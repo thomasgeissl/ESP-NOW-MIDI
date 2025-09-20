@@ -156,6 +156,7 @@ void setup() {
   MIDI.setHandleClock(onClock);
   MIDI.setHandleSongPosition(onSongPosition);
   MIDI.setHandleSongSelect(onSongSelect);
+  // MIDI.setHandleSystemExclusive(SystemExclusiveCallback fptr);
 
   // Init display
 #if HAS_DISPLAY == 1

@@ -43,3 +43,8 @@ struct midi_message {
     byte firstByte;
     byte secondByte;
 };
+
+struct midi_sysex_message {
+	byte data[128];
+	byte length;
+};

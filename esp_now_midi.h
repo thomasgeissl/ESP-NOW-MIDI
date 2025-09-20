@@ -248,8 +248,20 @@ public:
     message.firstByte = value;
     return sendToAllPeers((uint8_t *)&message, sizeof(message));
   }
+  esp_err_t sendSysex(uint8_t data[128], uint8_t length) {
+    midi_sysex_message sysexMessage;
+    sysexMessage.length = length;
+    memcpy(sysexMessage.data, data, length);
+    return sendToAllPeers((uint8_t *)&sysexMessage, sizeof(sysexMessage));
+  }
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
+    if(len > sizeof(midi_message)) {
+      midi_sysex_message sysexMessage;
+      memcpy(&sysexMessage, incomingData, sizeof(midi_sysex_message));
+      // TODO: Handle SysEx message if needed
+      return;
+    }
     midi_message message;
     memcpy(&message, incomingData, sizeof(message));
 

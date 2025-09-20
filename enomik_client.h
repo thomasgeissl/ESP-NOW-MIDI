@@ -2,6 +2,12 @@
 #include "esp_now_midi.h"
 #include <esp_now.h>
 #include <WiFi.h>
+#include "espHelpers.h"
+
+#ifdef HAS_USB_MIDI
+#include <Adafruit_TinyUSB.h>
+#include <MIDI.h>
+#endif
 
 // EEPROM configuration
 #define EEPROM_SIZE 512     // Total EEPROM size (can be 1-4096 bytes)
@@ -68,7 +74,7 @@ namespace enomik
             EEPROM.commit();
         }
 
-        bool macExists(const uint8_t mac[6] )
+        bool macExists(const uint8_t mac[6])
         {
             for (int i = 0; i < peerStorage.peerCount; i++)
             {
@@ -80,7 +86,7 @@ namespace enomik
             return false;
         }
 
-        void printMac(const uint8_t mac[6] )  // Fixed: changed to void
+        void printMac(const uint8_t mac[6]) // Fixed: changed to void
         {
             for (int i = 0; i < MAC_ADDRESS_SIZE; i++)
             {
@@ -94,8 +100,16 @@ namespace enomik
 
     public:
         esp_now_midi midi;
+#ifdef HAS_USB_MIDI
+        Adafruit_USBD_MIDI usb_midi;
+        void onSystemExclusive(const uint8_t *data, uint16_t length)
+        {
+            // TODO: get command byte and handle accordingly
+            Serial.println("got sysex message");
+        }
+#endif
 
-        Client() : isInitialized(false) 
+        Client() : isInitialized(false)
         {
             // Initialize peerStorage to safe defaults
             peerStorage.validFlag = 0;
@@ -120,6 +134,15 @@ namespace enomik
             // Initialize ESP-NOW MIDI
             midi.setup();
 
+#ifdef HAS_USB_MIDI
+            MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
+            MIDI.begin(MIDI_CHANNEL_OMNI);
+            TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
+            TinyUSBDevice.setProductDescriptor("enomik3000_client");
+            MIDI.setHandleSystemExclusive(onSystemExclusive);
+#endif  
+
+
             // Load existing peers from EEPROM - FIXED: uncommented
             // loadPeersFromEEPROM();
 
@@ -130,10 +153,11 @@ namespace enomik
             Serial.println(" peers from EEPROM");
         }
 
-        bool addPeer(const uint8_t mac[6] )
+        bool addPeer(const uint8_t mac[6])
         {
             // Check if client is initialized
-            if (!isInitialized) {
+            if (!isInitialized)
+            {
                 Serial.println("Client not initialized. Call begin() first.");
                 return false;
             }
@@ -174,7 +198,7 @@ namespace enomik
 
             return true;
         }
-        
+
         uint8_t *getPeer(int index)
         {
             if (index < 0 || index >= peerStorage.peerCount)
