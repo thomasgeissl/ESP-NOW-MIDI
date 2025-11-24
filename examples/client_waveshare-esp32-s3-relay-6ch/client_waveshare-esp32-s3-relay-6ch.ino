@@ -3,7 +3,6 @@
 
 // on the dongle: run the print_mac firmware and paste it here
 uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
-
 enomik::Client _client;
 
 void onNoteOn(byte channel, byte note, byte velocity) {

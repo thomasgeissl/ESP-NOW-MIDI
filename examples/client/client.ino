@@ -9,9 +9,8 @@
 
 // on the dongle: run the print_mac firmware and paste it here
 uint8_t peerMacAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
-
-
 enomik::Client _client;
+
 Adafruit_MPU6050 _mpu;
 Adafruit_VL53L0X _lox = Adafruit_VL53L0X();
 

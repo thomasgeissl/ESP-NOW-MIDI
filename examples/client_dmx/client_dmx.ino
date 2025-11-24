@@ -1,11 +1,10 @@
-#include <esp_now.h>
-#include <WiFi.h>
-#include "esp_now_midi.h"
+#include "enomik_client.h"
 #include <SparkFunDMX.h>  //https://github.com/sparkfun/SparkFunDMX/
 
 // on the dongle: run the print_mac firmware and paste it here
-uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF5, 0x29, 0x24 };
-esp_now_midi ESP_NOW_MIDI;
+uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+enomik::Client _client;
+
 SparkFunDMX dmx;
 HardwareSerial dmxSerial(2);
 uint8_t enPin = 21;
@@ -48,11 +47,8 @@ void onNoteOn(byte channel, byte note, byte velocity) {
   }
 }
 
-void onNoteOff(byte channel, byte note, byte velocity) {
-}
+void onNoteOff(byte channel, byte note, byte velocity) {}
 void onControlChange(byte channel, byte control, byte value) {
-  ESP_NOW_MIDI.sendControlChange(control, value, channel);
-
   // Determine if MSB (CC 0-31) or LSB (CC 32-63)
   bool isMSB = (control < 32);
   int baseControl = isMSB ? control : (control - 32);
@@ -105,23 +101,25 @@ void onPolyAfterTouch(byte channel, byte note, byte value) {}
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup(peerMacAddress, customOnDataSent);
-  // ESP_NOW_MIDI.setup(destinationMacAddress); //or get rid of the custom send function and use the default one
 
-  ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);
-  ESP_NOW_MIDI.setHandleNoteOff(onNoteOff);
-  ESP_NOW_MIDI.setHandleControlChange(onControlChange);
-  ESP_NOW_MIDI.setHandleProgramChange(onProgramChange);
-  ESP_NOW_MIDI.setHandlePitchBend(onPitchBend);
-  ESP_NOW_MIDI.setHandleAfterTouchChannel(onAfterTouch);
-  ESP_NOW_MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+
+  _client.begin();
+  _client.addPeer(peerMacAddress);
+
+  _client.midi.setHandleNoteOn(onNoteOn);
+  _client.midi.setHandleNoteOff(onNoteOff);
+  _client.midi.setHandleControlChange(onControlChange);
+  _client.midi.setHandleProgramChange(onProgramChange);
+  _client.midi.setHandlePitchBend(onPitchBend);
+  _client.midi.setHandleAfterTouchChannel(onAfterTouch);
+  _client.midi.setHandleAfterTouchPoly(onPolyAfterTouch);
 
   dmx.begin(dmxSerial, enPin, numChannels);
   dmx.setComDir(DMX_WRITE_DIR);
 
   // register as a client by sending any message
   // this is needed in this case, as the client will stay unkown to the dongle until the first message is sent.
-  ESP_NOW_MIDI.sendControlChange(127, 127, 16);
+  _client.midi.sendControlChange(127, 127, 16);
 }
 
 void loop() {

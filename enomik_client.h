@@ -86,7 +86,7 @@ namespace enomik
             return false;
         }
 
-        void printMac(const uint8_t mac[6]) // Fixed: changed to void
+        void printMac(const uint8_t mac[6])
         {
             for (int i = 0; i < MAC_ADDRESS_SIZE; i++)
             {
@@ -102,9 +102,19 @@ namespace enomik
         esp_now_midi midi;
 #ifdef HAS_USB_MIDI
         Adafruit_USBD_MIDI usb_midi;
-        void onSystemExclusive(const uint8_t *data, uint16_t length)
+        static Client *instancePtr;
+        
+        // Changed signature to match MIDI library expectations
+        static void handleSysExStatic(uint8_t *data, unsigned int length)
         {
-            // TODO: get command byte and handle accordingly
+            if (instancePtr)
+            {
+                instancePtr->onSystemExclusive(data, length);
+            }
+        }
+
+        void onSystemExclusive(uint8_t *data, unsigned int length)
+        {
             Serial.println("got sysex message");
         }
 #endif
@@ -119,6 +129,30 @@ namespace enomik
 
         void begin()
         {
+#ifdef HAS_USB_MIDI
+            // Initialize USB MIDI
+            instancePtr = this;
+            
+            // Create MIDI instance and begin FIRST
+            MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
+            MIDI.begin(MIDI_CHANNEL_OMNI);
+            
+            // Set USB descriptors
+            TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
+            TinyUSBDevice.setProductDescriptor("enomik3000_client");
+            
+            // If already enumerated, re-enumerate
+            if (TinyUSBDevice.mounted()) {
+                TinyUSBDevice.detach();
+                delay(10);
+                TinyUSBDevice.attach();
+            }
+            
+            MIDI.setHandleSystemExclusive(handleSysExStatic);
+            
+            Serial.println("USB MIDI initialized");
+#endif
+
             // Initialize EEPROM
             if (!EEPROM.begin(EEPROM_SIZE))
             {
@@ -134,16 +168,7 @@ namespace enomik
             // Initialize ESP-NOW MIDI
             midi.setup();
 
-#ifdef HAS_USB_MIDI
-            MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
-            MIDI.begin(MIDI_CHANNEL_OMNI);
-            TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
-            TinyUSBDevice.setProductDescriptor("enomik3000_client");
-            MIDI.setHandleSystemExclusive(onSystemExclusive);
-#endif  
-
-
-            // Load existing peers from EEPROM - FIXED: uncommented
+            // Load existing peers from EEPROM
             // loadPeersFromEEPROM();
 
             isInitialized = true;
@@ -219,7 +244,6 @@ namespace enomik
             {
                 if (memcmp(peerStorage.peers[i], mac, MAC_ADDRESS_SIZE) == 0)
                 {
-
                     // Shift remaining peers down
                     for (int j = i; j < peerStorage.peerCount - 1; j++)
                     {
@@ -391,4 +415,9 @@ namespace enomik
             return addPeer(mac);
         }
     };
+
+#ifdef HAS_USB_MIDI
+    // Define the static member INSIDE the namespace
+    Client* Client::instancePtr = nullptr;
+#endif
 };

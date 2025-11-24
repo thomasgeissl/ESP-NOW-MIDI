@@ -3,7 +3,6 @@
 
 // on the dongle: run the print_mac firmware and paste it here
 uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
-
 enomik::Client _client;
 
 
