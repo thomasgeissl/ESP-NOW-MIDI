@@ -39,6 +39,16 @@ if you wanna put them into a case, you can probably find 3d models online, here 
 * **client_dac_i2s (wip)** - synth that can be controlled via dongle, e.g. send midi notes from a DAW to the dongle midi device - ** this is currently broken **
 * **client_waveshare-esp32-s3-relay-6ch** - simple relay controller that listens to note on/off messages, e.g. control solenoids 
 * **client_buttons** - reads button press/release and sends note on/off accordingly
+* **client_dmx** - control your dmx fixtures wirelessly
+  * CC MSB/LSB mapping
+    * MIDI Ch 1, CC 0 (MSB) + CC 32 (LSB) -> DMX Channel 1
+    * MIDI Ch 1, CC 1 (MSB) + CC 33 (LSB) -> DMX Channel 2
+    * MIDI Ch 1, CC 31 (MSB) + CC 63 (LSB) -> DMX Channel 32
+    * MIDI Ch 2, CC 0 (MSB) + CC 32 (LSB) -> DMX Channel 33
+    * MIDI Ch 16, CC 31 (MSB) + CC 63 (LSB) -> DMX Channel 512
+  * NOTEON direct mapping
+    * MIDI Ch 1, NOTE 0, VEL: 127 -> DMX Channel 1, value: 127*2
+    * MIDI Ch 4, NOTE 127, VEL: 127 -> DMX Channel 512, value: 127*2
 
 ## dependencies
 * dependencies for the library should be automatically installed
@@ -49,6 +59,7 @@ if you wanna put them into a case, you can probably find 3d models online, here 
   * Adafruit MPU6050
   * Adafruit VL53L0x
 * examples/client_dac_i2s depends on mozzi
+* examples/client_dmx depends on SparkfunDMX 
 
 ## contributing
 If you find any bugs feel free to submit an issue on github, also PRs are very welcome.
