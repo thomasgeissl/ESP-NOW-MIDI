@@ -95,6 +95,7 @@ void setup() {
 }
 
 void loop() {
+  _client.loop();
   if (_mpu6050Connected) {
     sensors_event_t a, g, temp;
     _mpu.getEvent(&a, &g, &temp);

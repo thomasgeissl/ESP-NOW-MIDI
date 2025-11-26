@@ -31,6 +31,7 @@ void setup() {
 }
 
 void loop() {
+  _client.loop();
   for (auto i = 0; i < NUMBER_OF_BUTTONS; i++) {
     _buttons[i].check();
   }

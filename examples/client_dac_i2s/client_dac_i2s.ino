@@ -99,5 +99,6 @@ AudioOutput updateAudio() {
 }
 
 void loop() {
+  _client.loop();
   audioHook();
 }

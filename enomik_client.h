@@ -3,6 +3,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include "espHelpers.h"
+#include "io.h"
 
 #ifdef HAS_USB_MIDI
 #include <Adafruit_TinyUSB.h>
@@ -30,6 +31,7 @@ namespace enomik
     private:
         PeerStorage peerStorage;
         bool isInitialized;
+        enomik::IO _io;
 
 // ESP-NOW callback for backwards compatibility
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
@@ -103,7 +105,7 @@ namespace enomik
 #ifdef HAS_USB_MIDI
         Adafruit_USBD_MIDI usb_midi;
         static Client *instancePtr;
-        
+
         // Changed signature to match MIDI library expectations
         static void handleSysExStatic(uint8_t *data, unsigned int length)
         {
@@ -116,6 +118,28 @@ namespace enomik
         void onSystemExclusive(uint8_t *data, unsigned int length)
         {
             Serial.println("got sysex message");
+            //sysex start, manufacturer id, input/output, pin, pinMode , sysex endq
+            if (length < 6)
+            {
+                Serial.println("sysex message too short");
+                return;
+            }
+            uint8_t manufacturerId = data[1];
+            uint8_t inputOutput = data[2];
+            uint8_t pin = data[3];
+            uint8_t pinMode = data[4];
+            Serial.print("Manufacturer ID: ");
+            Serial.println(manufacturerId, HEX);
+            Serial.print("Input/Output: ");
+            Serial.println(inputOutput);
+            Serial.print("Pin Mode: ");
+            Serial.println(pinMode);
+
+            enomik::PinConfig config;
+            config.pin = pin;
+            config.mode = pinMode;
+            
+            _io.addPinConfig(config);
         }
 #endif
 
@@ -129,27 +153,32 @@ namespace enomik
 
         void begin()
         {
+            _io.begin();
+            _io.setOnMIDISendRequest([this](midi_message msg) {
+                this->midi.sendToAllPeers((uint8_t *)&msg, sizeof(msg));
+            });
 #ifdef HAS_USB_MIDI
             // Initialize USB MIDI
             instancePtr = this;
-            
+
             // Create MIDI instance and begin FIRST
             MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
             MIDI.begin(MIDI_CHANNEL_OMNI);
-            
+
             // Set USB descriptors
             TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
             TinyUSBDevice.setProductDescriptor("enomik3000_client");
-            
+
             // If already enumerated, re-enumerate
-            if (TinyUSBDevice.mounted()) {
+            if (TinyUSBDevice.mounted())
+            {
                 TinyUSBDevice.detach();
                 delay(10);
                 TinyUSBDevice.attach();
             }
-            
+
             MIDI.setHandleSystemExclusive(handleSysExStatic);
-            
+
             Serial.println("USB MIDI initialized");
 #endif
 
@@ -176,6 +205,10 @@ namespace enomik
             Serial.print("Loaded ");
             Serial.print(peerStorage.peerCount);
             Serial.println(" peers from EEPROM");
+        }
+        void loop()
+        {
+            _io.loop();
         }
 
         bool addPeer(const uint8_t mac[6])
@@ -418,6 +451,6 @@ namespace enomik
 
 #ifdef HAS_USB_MIDI
     // Define the static member INSIDE the namespace
-    Client* Client::instancePtr = nullptr;
+    Client *Client::instancePtr = nullptr;
 #endif
 };

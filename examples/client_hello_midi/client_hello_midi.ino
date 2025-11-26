@@ -64,6 +64,7 @@ void setup() {
 }
 
 void loop() {
+  _client.loop();
   esp_err_t result = _client.midi.sendNoteOn(60, 127, 1);
 
   if (result != ESP_OK) {

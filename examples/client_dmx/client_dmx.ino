@@ -123,5 +123,6 @@ void setup() {
 }
 
 void loop() {
+  _client.loop();
   dmx.update();
 }
