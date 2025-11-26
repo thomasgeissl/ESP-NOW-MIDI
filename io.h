@@ -106,6 +106,41 @@ namespace enomik
             _onMIDISendRequest = callback;
         }
 
+        void onNoteOn(byte channel, byte note, byte velocity) {
+            for(auto &config : _pinConfigs) {
+                if(config.midi_type == MidiStatus::MIDI_NOTE_ON && config.midi_channel == channel && config.midi_note == note) {
+                    if(config.mode == OUTPUT){
+                        digitalWrite(config.pin, velocity > 0 ? HIGH : LOW);
+                    }
+                    //TODO: handle other pin modes
+                }
+            }
+        }
+        void onNoteOff(byte channel, byte note, byte velocity) {
+            for(auto &config : _pinConfigs) {
+                if(config.midi_type == MidiStatus::MIDI_NOTE_OFF && config.midi_channel == channel && config.midi_note == note) {
+                    if(config.mode == OUTPUT){
+                        digitalWrite(config.pin, LOW);
+                    }
+                    //TODO: handle other pin modes
+                }
+            }
+        }
+        void onPitchBend(byte channel, int bend) {}
+        void onControlChange(byte channel, byte control, byte value) {
+            for(auto &config : _pinConfigs) {
+                if(config.midi_type == MidiStatus::MIDI_CONTROL_CHANGE && config.midi_channel == channel && config.midi_cc == control) {
+                    if(config.mode == OUTPUT){
+                        analogWrite(config.pin, value); // assuming value is 0-127, may need mapping
+                    }
+                    //TODO: handle other pin modes
+                }
+            }
+        }
+        void onProgramChange(byte channel, byte program) {
+            // TODO: 
+        }
+
     private:
         std::vector<PinConfig> _pinConfigs;
         std::function<void(midi_message)> _onMIDISendRequest;

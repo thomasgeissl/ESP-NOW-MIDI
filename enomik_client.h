@@ -31,7 +31,6 @@ namespace enomik
     private:
         PeerStorage peerStorage;
         bool isInitialized;
-        enomik::IO _io;
 
 // ESP-NOW callback for backwards compatibility
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
@@ -100,11 +99,48 @@ namespace enomik
             }
         }
 
+        static void handleNoteOnStatic(byte channel, byte note, byte velocity)
+        {
+            if (Client::instancePtr)
+            {
+                Client::instancePtr->io.onNoteOn(channel, note, velocity);
+            }
+        }
+        static void handleNoteOffStatic(byte channel, byte note, byte velocity)
+        {
+            if (Client::instancePtr)
+            {
+                Client::instancePtr->io.onNoteOff(channel, note, velocity);
+            }
+        }
+        static void handleControlChangeStatic(byte channel, byte control, byte value)
+        {
+            if (Client::instancePtr)
+            {
+                Client::instancePtr->io.onControlChange(channel, control, value);
+            }
+        }
+        static void handleProgramChangeStatic(byte channel, byte program)
+        {
+            if (Client::instancePtr)
+            {
+                Client::instancePtr->io.onProgramChange(channel, program);
+            }
+        }
+        static void handlePitchBendStatic(byte channel, int value)
+        {
+            if (Client::instancePtr)
+            {
+                Client::instancePtr->io.onPitchBend(channel, value);
+            }
+        }
+
     public:
+        static Client *instancePtr;
         esp_now_midi midi;
+        enomik::IO io;
 #ifdef HAS_USB_MIDI
         Adafruit_USBD_MIDI usb_midi;
-        static Client *instancePtr;
 
         // Changed signature to match MIDI library expectations
         static void handleSysExStatic(uint8_t *data, unsigned int length)
@@ -118,7 +154,7 @@ namespace enomik
         void onSystemExclusive(uint8_t *data, unsigned int length)
         {
             Serial.println("got sysex message");
-            //sysex start, manufacturer id, input/output, pin, pinMode , sysex endq
+            // sysex start, manufacturer id, input/output, pin, pinMode , sysex endq
             if (length < 6)
             {
                 Serial.println("sysex message too short");
@@ -138,7 +174,7 @@ namespace enomik
             enomik::PinConfig config;
             config.pin = pin;
             config.mode = pinMode;
-            
+
             _io.addPinConfig(config);
         }
 #endif
@@ -153,13 +189,12 @@ namespace enomik
 
         void begin()
         {
-            _io.begin();
-            _io.setOnMIDISendRequest([this](midi_message msg) {
-                this->midi.sendToAllPeers((uint8_t *)&msg, sizeof(msg));
-            });
+            instancePtr = this;
+            io.begin();
+            io.setOnMIDISendRequest([this](midi_message msg)
+                                    { this->midi.sendToAllPeers((uint8_t *)&msg, sizeof(msg)); });
 #ifdef HAS_USB_MIDI
             // Initialize USB MIDI
-            instancePtr = this;
 
             // Create MIDI instance and begin FIRST
             MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
@@ -196,6 +231,13 @@ namespace enomik
 
             // Initialize ESP-NOW MIDI
             midi.setup();
+            // TODO: this overrides existing callback, need to chain
+            // or setting a custom callback will break the IO system
+            midi.setHandleNoteOn(handleNoteOnStatic);
+            midi.setHandleNoteOff(handleNoteOffStatic);
+            midi.setHandleControlChange(handleControlChangeStatic);
+            midi.setHandleProgramChange(handleProgramChangeStatic);
+            midi.setHandlePitchBend(handlePitchBendStatic);
 
             // Load existing peers from EEPROM
             // loadPeersFromEEPROM();
@@ -208,7 +250,7 @@ namespace enomik
         }
         void loop()
         {
-            _io.loop();
+            io.loop();
         }
 
         bool addPeer(const uint8_t mac[6])
@@ -449,8 +491,6 @@ namespace enomik
         }
     };
 
-#ifdef HAS_USB_MIDI
     // Define the static member INSIDE the namespace
     Client *Client::instancePtr = nullptr;
-#endif
 };
