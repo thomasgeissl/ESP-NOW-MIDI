@@ -17,6 +17,8 @@ namespace enomik
         MidiStatus midi_type = MidiStatus::MIDI_CONTROL_CHANGE;
         uint8_t midi_cc = 0;
         uint8_t midi_note = 0;
+        uint8_t min_midi_value = 0;
+        uint8_t max_midi_value = 127;
 
         PinConfig(uint8_t p, uint8_t m)
             : pin(p), mode(m)
@@ -42,6 +44,10 @@ namespace enomik
                 {
                     return;
                 }
+                if(config.mode == OUTPUT || config.mode == 0x04) //digital out or pwm out
+                {
+                    continue; // skip outputs
+                }
 
                 if (config.mode == INPUT || config.mode == INPUT_PULLUP)
                 {
@@ -52,23 +58,23 @@ namespace enomik
                     value = analogRead(config.pin);
                 }
 
-                if (config.midi_type == 176)
+                if (config.midi_type == MidiStatus::MIDI_NOTE_OFF)
                 { // CC
-                    message.firstByte = config.midi_cc;
+                    message.firstByte = config.midi_note;
                     // TODO: map value to 0-127
                     message.secondByte = value & 0x7F;
                     _onMIDISendRequest(message);
                 }
-                else if (config.midi_type == 144)
+                else if (config.midi_type == MidiStatus::MIDI_NOTE_ON)
                 { // Note On
                     message.firstByte = config.midi_note;
                     // TODO: map value to 0-127
                     message.secondByte = value & 0x7F;
                     _onMIDISendRequest(message);
                 }
-                else if (config.midi_type == 128)
-                { // Note Off
-                    message.firstByte = config.midi_note;
+                else if (config.midi_type == MidiStatus::MIDI_CONTROL_CHANGE)
+                { // CC
+                    message.firstByte = config.midi_cc;
                     // TODO: map value to 0-127
                     message.secondByte = value & 0x7F;
                     _onMIDISendRequest(message);
@@ -106,39 +112,80 @@ namespace enomik
             _onMIDISendRequest = callback;
         }
 
-        void onNoteOn(byte channel, byte note, byte velocity) {
-            for(auto &config : _pinConfigs) {
-                if(config.midi_type == MidiStatus::MIDI_NOTE_ON && config.midi_channel == channel && config.midi_note == note) {
-                    if(config.mode == OUTPUT){
+        void onNoteOn(byte channel, byte note, byte velocity)
+        {
+            for (auto &config : _pinConfigs)
+            {
+                if (config.midi_type == MidiStatus::MIDI_NOTE_ON && config.midi_channel == channel && config.midi_note == note)
+                {
+                    if (config.mode == OUTPUT)
+                    {
                         digitalWrite(config.pin, velocity > 0 ? HIGH : LOW);
                     }
-                    //TODO: handle other pin modes
+                    else if (config.mode == 0x04)
+                    {                                          // analog output/PWM
+                        analogWrite(config.pin, velocity * 2); // TODO: map correctly
+                    }
                 }
             }
         }
-        void onNoteOff(byte channel, byte note, byte velocity) {
-            for(auto &config : _pinConfigs) {
-                if(config.midi_type == MidiStatus::MIDI_NOTE_OFF && config.midi_channel == channel && config.midi_note == note) {
-                    if(config.mode == OUTPUT){
+        void onNoteOff(byte channel, byte note, byte velocity)
+        {
+            for (auto &config : _pinConfigs)
+            {
+                if (config.midi_type == MidiStatus::MIDI_NOTE_OFF && config.midi_channel == channel && config.midi_note == note)
+                {
+                    if (config.mode == OUTPUT)
+                    {
                         digitalWrite(config.pin, LOW);
                     }
-                    //TODO: handle other pin modes
+                    else if (config.mode == 0x04)
+                    { // analog output/PWM
+                        analogWrite(config.pin, LOW);
+                    }
                 }
             }
         }
-        void onPitchBend(byte channel, int bend) {}
-        void onControlChange(byte channel, byte control, byte value) {
-            for(auto &config : _pinConfigs) {
-                if(config.midi_type == MidiStatus::MIDI_CONTROL_CHANGE && config.midi_channel == channel && config.midi_cc == control) {
-                    if(config.mode == OUTPUT){
+        void onPitchBend(byte channel, int bend)
+        {
+            for (auto &config : _pinConfigs)
+            {
+                if (config.midi_type == MidiStatus::MIDI_PITCH_BEND && config.midi_channel == channel)
+                {
+                    if (config.mode == OUTPUT)
+                    {
+                        // Map bend value to 0-255 for 8-bit resolution
+                        analogWrite(config.pin, bend < 8192 ? LOW : HIGH);
+                    }
+                    else if (config.mode == 0x04)
+                    {                                                  // analog output/PWM
+                        int mappedValue = map(bend, 0, 16383, 0, 255); // TODO: map to correct range based on config
+                        analogWrite(config.pin, mappedValue);
+                    }
+                }
+            }
+        }
+        void onControlChange(byte channel, byte control, byte value)
+        {
+            for (auto &config : _pinConfigs)
+            {
+                if (config.midi_type == MidiStatus::MIDI_CONTROL_CHANGE && config.midi_channel == channel && config.midi_cc == control)
+                {
+                    if (config.mode == OUTPUT)
+                    {
                         analogWrite(config.pin, value); // assuming value is 0-127, may need mapping
                     }
-                    //TODO: handle other pin modes
+                    else if (config.mode == 0x04)
+                    {                                                 // analog output/PWM
+                        int mappedValue = map(value, 0, 127, 0, 255); // TODO: map to correct range based on config
+                        analogWrite(config.pin, mappedValue);
+                    }
                 }
             }
         }
-        void onProgramChange(byte channel, byte program) {
-            // TODO: 
+        void onProgramChange(byte channel, byte program)
+        {
+            // TODO:
         }
 
     private:
