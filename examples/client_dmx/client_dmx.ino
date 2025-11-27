@@ -106,20 +106,20 @@ void setup() {
   _client.begin();
   _client.addPeer(peerMacAddress);
 
-  _client.midi.setHandleNoteOn(onNoteOn);
-  _client.midi.setHandleNoteOff(onNoteOff);
-  _client.midi.setHandleControlChange(onControlChange);
-  _client.midi.setHandleProgramChange(onProgramChange);
-  _client.midi.setHandlePitchBend(onPitchBend);
-  _client.midi.setHandleAfterTouchChannel(onAfterTouch);
-  _client.midi.setHandleAfterTouchPoly(onPolyAfterTouch);
+  _client.setHandleNoteOn(onNoteOn);
+  _client.setHandleNoteOff(onNoteOff);
+  _client.setHandleControlChange(onControlChange);
+  _client.setHandleProgramChange(onProgramChange);
+  _client.setHandlePitchBend(onPitchBend);
+  _client.setHandleAfterTouchChannel(onAfterTouch);
+  _client.setHandleAfterTouchPoly(onPolyAfterTouch);
 
   dmx.begin(dmxSerial, enPin, numChannels);
   dmx.setComDir(DMX_WRITE_DIR);
 
   // register as a client by sending any message
   // this is needed in this case, as the client will stay unkown to the dongle until the first message is sent.
-  _client.midi.sendControlChange(127, 127, 16);
+  _client.sendControlChange(127, 127, 16);
 }
 
 void loop() {

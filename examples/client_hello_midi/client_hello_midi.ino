@@ -50,36 +50,36 @@ void setup() {
   _client.addPeer(peerMacAddress);
   // all of these midi handlers are optional, depends on the usecase, very often you just wanna send data and not receive
   // e.g. this can be used for calibration, or maybe you wanna connect an amp via i2s and render some sound
-  // _client.midi.setHandleNoteOn(onNoteOn);
-  // _client.midi.setHandleNoteOff(onNoteOff);
-  // _client.midi.setHandleControlChange(onControlChange);
-  // _client.midi.setHandleProgramChange(onProgramChange);
-  // _client.midi.setHandlePitchBend(onPitchBend);
-  // _client.midi.setHandleAfterTouchChannel(onAfterTouch);
-  // _client.midi.setHandleAfterTouchPoly(onPolyAfterTouch);
-  // _client.midi.setHandleStart(onStart);
-  // _client.midi.setHandleStop(onStop);
-  // _client.midi.setHandleContinue(onContinue);
-  // _client.midi.setHandleClock(onClock);
+  // _client.setHandleNoteOn(onNoteOn);
+  // _client.setHandleNoteOff(onNoteOff);
+  // _client.setHandleControlChange(onControlChange);
+  // _client.setHandleProgramChange(onProgramChange);
+  // _client.setHandlePitchBend(onPitchBend);
+  // _client.setHandleAfterTouchChannel(onAfterTouch);
+  // _client.setHandleAfterTouchPoly(onPolyAfterTouch);
+  // _client.setHandleStart(onStart);
+  // _client.setHandleStop(onStop);
+  // _client.setHandleContinue(onContinue);
+  // _client.setHandleClock(onClock);
 }
 
 void loop() {
   _client.loop();
-  esp_err_t result = _client.midi.sendNoteOn(60, 127, 1);
+  bool success = _client.sendNoteOn(60, 127, 1);
 
-  if (result != ESP_OK) {
+  if (success != ESP_OK) {
     Serial.println("Error sending the data");
   }
   delay(100);
-  result = _client.midi.sendNoteOff(60, 0, 1);
+  success = _client.sendNoteOff(60, 0, 1);
   delay(100);
-  result = _client.midi.sendControlChange(1, 127, 1);
+  success = _client.sendControlChange(1, 127, 1);
   delay(100);
-  result = _client.midi.sendControlChange(1, 0, 1);
+  success = _client.sendControlChange(1, 0, 1);
   delay(100);
-  result = _client.midi.sendPitchBend(16383, 1);
+  success = _client.sendPitchBend(1, 16383);
   delay(100);
-  result = _client.midi.sendPitchBend(0, 1);
+  success = _client.sendPitchBend(1, 0);
 
   delay(2000);
 }

@@ -365,11 +365,11 @@ public:
     onClockHandler = callback;
   }
 
-  void setHandleSongPosition(void (*callback)(int value)) {
+  void setHandleSongPosition(void (*callback)(uint16_t value)) {
     onSongPositionHandler = callback;
   }
 
-  void setHandleSongSelect(void (*callback)(int value)) {
+  void setHandleSongSelect(void (*callback)(byte value)) {
     onSongSelectHandler = callback;
   }
 
@@ -391,8 +391,8 @@ private:
   void (*onStopHandler)() = nullptr;
   void (*onContinueHandler)() = nullptr;
   void (*onClockHandler)() = nullptr;
-  void (*onSongPositionHandler)(int value) = nullptr;
-  void (*onSongSelectHandler)(int value) = nullptr;
+  void (*onSongPositionHandler)(uint16_t value) = nullptr;
+  void (*onSongSelectHandler)(byte value) = nullptr;
 };
 
 esp_now_midi *esp_now_midi::_instance = nullptr;

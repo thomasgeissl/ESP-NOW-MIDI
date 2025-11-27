@@ -76,8 +76,8 @@ void audioOutput(const AudioOutput f) // f is a structure containing both channe
 void setup() {
   _client.begin();
   _client.addPeer(peerMacAddress);
-  _client.midi.setHandleNoteOn(onNoteOn);
-  _client.midi.setHandleNoteOff(onNoteOff);
+  _client.espnowMIDI.setHandleNoteOn(onNoteOn);
+  _client.espnowMIDI.setHandleNoteOff(onNoteOff);
 
   //setup audio
   envelope.setADLevels(255, 64);
@@ -87,7 +87,7 @@ void setup() {
 
   //register esp now midi client
   delay(1000);
-  _client.midi.sendControlChange(127, 127, 16);
+  _client.sendControlChange(127, 127, 16);
 }
 
 void updateControl() {

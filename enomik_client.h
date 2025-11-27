@@ -1,9 +1,10 @@
-#include "EEPROM.h"
 #include "esp_now_midi.h"
 #include <esp_now.h>
 #include <WiFi.h>
-#include "espHelpers.h"
 #include "enomik_io.h"
+#include "PeerStorage.h"
+#include "utils/esp.h"
+#include "utils/mac.h"
 
 #ifdef HAS_USB_MIDI
 #include <Adafruit_TinyUSB.h>
@@ -14,20 +15,6 @@ Adafruit_USBD_MIDI g_usb_midi;
 MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, g_usb_midi, USBMIDI);
 #endif
 
-// EEPROM configuration
-#define EEPROM_SIZE 512
-#define MAC_ADDRESS_SIZE 6
-#define MAC_EEPROM_ADDR 0
-#define MAC_VALID_FLAG 0xAB
-
-// Structure to store peer list
-struct PeerStorage
-{
-    uint8_t validFlag;
-    uint8_t peerCount;
-    uint8_t peers[MAX_PEERS][MAC_ADDRESS_SIZE];
-};
-
 namespace enomik
 {
     class Client
@@ -35,6 +22,28 @@ namespace enomik
     private:
         PeerStorage peerStorage;
         bool isInitialized;
+
+        // --- Channel Voice ---
+        std::function<void(byte channel, byte note, byte velocity)> _onNoteOnHandler;
+        std::function<void(byte channel, byte note, byte velocity)> _onNoteOffHandler;
+        std::function<void(byte channel, byte control, byte value)> _onControlChangeHandler;
+        std::function<void(byte channel, byte program)> _onProgramChangeHandler;
+        std::function<void(byte channel, byte pressure)> _onAfterTouchChannelHandler;         // Channel aftertouch
+        std::function<void(byte channel, byte note, byte pressure)> _onAfterTouchPolyHandler; // Poly aftertouch
+        std::function<void(byte channel, int value)> _onPitchBendHandler;
+
+        // --- System Real-Time ---
+        std::function<void()> _onStartHandler;
+        std::function<void()> _onStopHandler;
+        std::function<void()> _onContinueHandler;
+        std::function<void()> _onClockHandler;
+
+        // --- System Common ---
+        std::function<void(uint16_t songPosition)> _onSongPositionHandler;
+        std::function<void(byte songNumber)> _onSongSelectHandler;
+
+        // --- System Exclusive ---
+        std::function<void(uint8_t *data, unsigned int length)> _onSysExHandler;
 
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
         static void onDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status)
@@ -48,59 +57,6 @@ namespace enomik
         }
 #endif
 
-        void loadPeersFromEEPROM()
-        {
-            EEPROM.get(MAC_EEPROM_ADDR, peerStorage);
-
-            if (peerStorage.validFlag != MAC_VALID_FLAG)
-            {
-                peerStorage.validFlag = MAC_VALID_FLAG;
-                peerStorage.peerCount = 0;
-                memset(peerStorage.peers, 0, sizeof(peerStorage.peers));
-                savePeersToEEPROM();
-            }
-            else
-            {
-                for (int i = 0; i < peerStorage.peerCount; i++)
-                {
-                    midi.addPeer(peerStorage.peers[i]);
-                    Serial.print("Restored peer: ");
-                    printMac(peerStorage.peers[i]);
-                    Serial.println();
-                }
-            }
-        }
-
-        void savePeersToEEPROM()
-        {
-            EEPROM.put(MAC_EEPROM_ADDR, peerStorage);
-            EEPROM.commit();
-        }
-
-        bool macExists(const uint8_t mac[6])
-        {
-            for (int i = 0; i < peerStorage.peerCount; i++)
-            {
-                if (memcmp(peerStorage.peers[i], mac, MAC_ADDRESS_SIZE) == 0)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        void printMac(const uint8_t mac[6])
-        {
-            for (int i = 0; i < MAC_ADDRESS_SIZE; i++)
-            {
-                if (mac[i] < 16)
-                    Serial.print("0");
-                Serial.print(mac[i], HEX);
-                if (i < MAC_ADDRESS_SIZE - 1)
-                    Serial.print(":");
-            }
-        }
-
         void onSystemExclusive(uint8_t *data, unsigned int length)
         {
             Serial.println("got sysex message");
@@ -113,7 +69,7 @@ namespace enomik
             uint8_t inputOutput = data[2];
             uint8_t pin = data[3];
             uint8_t pinMode = data[4];
-            uint8_t midiType = data[5] *2;
+            uint8_t midiType = data[5] * 2;
             Serial.print("Manufacturer ID: ");
             Serial.println(manufacturerId, HEX);
             Serial.print("Input/Output: ");
@@ -129,76 +85,142 @@ namespace enomik
             io.addPinConfig(config);
         }
 
+        // --- Static handlers that call both IO and user-defined callbacks ---
         static void handleNoteOnStatic(byte channel, byte note, byte velocity)
         {
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onNoteOn(channel, note, velocity);
+                if (Client::instancePtr->_onNoteOnHandler)
+                    Client::instancePtr->_onNoteOnHandler(channel, note, velocity);
             }
         }
-        
+
         static void handleNoteOffStatic(byte channel, byte note, byte velocity)
         {
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onNoteOff(channel, note, velocity);
+                if (Client::instancePtr->_onNoteOffHandler)
+                    Client::instancePtr->_onNoteOffHandler(channel, note, velocity);
             }
         }
-        
+
         static void handleControlChangeStatic(byte channel, byte control, byte value)
         {
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onControlChange(channel, control, value);
+                if (Client::instancePtr->_onControlChangeHandler)
+                    Client::instancePtr->_onControlChangeHandler(channel, control, value);
             }
         }
-        
+
         static void handleProgramChangeStatic(byte channel, byte program)
         {
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onProgramChange(channel, program);
+                if (Client::instancePtr->_onProgramChangeHandler)
+                    Client::instancePtr->_onProgramChangeHandler(channel, program);
             }
         }
-        
+
+        static void handleAfterTouchChannelStatic(byte channel, byte pressure)
+        {
+            if (Client::instancePtr)
+            {
+                // Client::instancePtr->io.onAfterTouch(channel, pressure);
+                if (Client::instancePtr->_onAfterTouchChannelHandler)
+                    Client::instancePtr->_onAfterTouchChannelHandler(channel, pressure);
+            }
+        }
+
+        static void handleAfterTouchPolyStatic(byte channel, byte note, byte pressure)
+        {
+            if (Client::instancePtr)
+            {
+                // Client::instancePtr->io.onAfterTouchPoly(note, pressure, channel);
+                if (Client::instancePtr->_onAfterTouchPolyHandler)
+                    Client::instancePtr->_onAfterTouchPolyHandler(channel, note, pressure);
+            }
+        }
+
         static void handlePitchBendStatic(byte channel, int value)
         {
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onPitchBend(channel, value);
+                if (Client::instancePtr->_onPitchBendHandler)
+                    Client::instancePtr->_onPitchBendHandler(channel, value);
+            }
+        }
+
+        // --- System Real-Time ---
+        static void handleStartStatic()
+        {
+            if (Client::instancePtr && Client::instancePtr->_onStartHandler)
+                Client::instancePtr->_onStartHandler();
+        }
+
+        static void handleStopStatic()
+        {
+            if (Client::instancePtr && Client::instancePtr->_onStopHandler)
+                Client::instancePtr->_onStopHandler();
+        }
+
+        static void handleContinueStatic()
+        {
+            if (Client::instancePtr && Client::instancePtr->_onContinueHandler)
+                Client::instancePtr->_onContinueHandler();
+        }
+
+        static void handleClockStatic()
+        {
+            if (Client::instancePtr && Client::instancePtr->_onClockHandler)
+                Client::instancePtr->_onClockHandler();
+        }
+
+        // --- System Common ---
+        static void handleSongPositionStatic(uint16_t songPosition)
+        {
+            if (Client::instancePtr && Client::instancePtr->_onSongPositionHandler)
+                Client::instancePtr->_onSongPositionHandler(songPosition);
+        }
+
+        static void handleSongSelectStatic(byte songNumber)
+        {
+            if (Client::instancePtr && Client::instancePtr->_onSongSelectHandler)
+                Client::instancePtr->_onSongSelectHandler(songNumber);
+        }
+
+        // --- System Exclusive ---
+        static void handleSysExStatic(uint8_t *data, unsigned int length)
+        {
+            if (Client::instancePtr)
+            {
+                Client::instancePtr->onSystemExclusive(data, length);
+                if (Client::instancePtr->_onSysExHandler)
+                    Client::instancePtr->_onSysExHandler(data, length);
             }
         }
 
     public:
         static Client *instancePtr;
-        esp_now_midi midi;
+        esp_now_midi espnowMIDI;
         enomik::IO io;
-
-#ifdef HAS_USB_MIDI
-        static void handleSysExStatic(uint8_t *data, unsigned int length)
-        {
-            if (instancePtr)
-            {
-                instancePtr->onSystemExclusive(data, length);
-            }
-        }
-#endif
 
         Client() : isInitialized(false)
         {
             instancePtr = this;
-            peerStorage.validFlag = 0;
-            peerStorage.peerCount = 0;
-            memset(peerStorage.peers, 0, sizeof(peerStorage.peers));
         }
 
         void begin()
         {
             io.begin();
             io.setOnMIDISendRequest([this](midi_message msg)
-                                    { 
-                                        // Serial.println
-                                        // this->midi.sendToAllPeers((uint8_t *)&msg, sizeof(msg)); 
+                                    {
+                                        // this->midi.sendToAllPeers((uint8_t *)&msg, sizeof(msg));
                                     });
 
 #ifdef HAS_USB_MIDI
@@ -217,16 +239,8 @@ namespace enomik
                 TinyUSBDevice.attach();
             }
 
-            USBMIDI.setHandleSystemExclusive(handleSysExStatic);
             Serial.println("USB MIDI initialized");
 #endif
-
-            // Initialize EEPROM
-            if (!EEPROM.begin(EEPROM_SIZE))
-            {
-                Serial.println("Failed to initialize EEPROM");
-                return;
-            }
 
             // Initialize WiFi
             WiFi.mode(WIFI_STA);
@@ -234,29 +248,62 @@ namespace enomik
             Serial.println(WiFi.macAddress());
 
             // Initialize ESP-NOW MIDI
-            midi.setup();
-            
-            // Set handlers for ESP-NOW
-            midi.setHandleNoteOn(handleNoteOnStatic);
-            midi.setHandleNoteOff(handleNoteOffStatic);
-            midi.setHandleControlChange(handleControlChangeStatic);
-            midi.setHandleProgramChange(handleProgramChangeStatic);
-            midi.setHandlePitchBend(handlePitchBendStatic);
+            espnowMIDI.setup();
+
+            // Initialize peer storage (handles EEPROM internally)
+            if (!peerStorage.begin())
+            {
+                Serial.println("Failed to initialize peer storage");
+                return;
+            }
+
+            // Restore all peers from storage to ESP-NOW
+            for (int i = 0; i < peerStorage.count(); i++)
+            {
+                const uint8_t *mac = peerStorage.get(i);
+                if (mac)
+                {
+                    espnowMIDI.addPeer(mac);
+                    Serial.print("Restored peer: ");
+                    Serial.println(macToString(mac));
+                }
+            }
+
+            // --- Set handlers for ESP-NOW ---
+            // espnowMIDI.setHandleSysEx(handleSysExStatic);
+            espnowMIDI.setHandleNoteOn(handleNoteOnStatic);
+            espnowMIDI.setHandleNoteOff(handleNoteOffStatic);
+            espnowMIDI.setHandleControlChange(handleControlChangeStatic);
+            espnowMIDI.setHandleProgramChange(handleProgramChangeStatic);
+            espnowMIDI.setHandleAfterTouchChannel(handleAfterTouchChannelStatic);
+            espnowMIDI.setHandleAfterTouchPoly(handleAfterTouchPolyStatic);
+            espnowMIDI.setHandlePitchBend(handlePitchBendStatic);
+            espnowMIDI.setHandleStart(handleStartStatic);
+            espnowMIDI.setHandleStop(handleStopStatic);
+            espnowMIDI.setHandleContinue(handleContinueStatic);
+            espnowMIDI.setHandleClock(handleClockStatic);
+            espnowMIDI.setHandleSongPosition(handleSongPositionStatic);
+            espnowMIDI.setHandleSongSelect(handleSongSelectStatic);
 
 #ifdef HAS_USB_MIDI
-            // Set handlers for USB MIDI
+            // --- Set handlers for USB MIDI ---
+            USBMIDI.setHandleSystemExclusive(handleSysExStatic);
             USBMIDI.setHandleNoteOn(handleNoteOnStatic);
             USBMIDI.setHandleNoteOff(handleNoteOffStatic);
             USBMIDI.setHandleControlChange(handleControlChangeStatic);
             USBMIDI.setHandleProgramChange(handleProgramChangeStatic);
+            USBMIDI.setHandleAfterTouchChannel(handleAfterTouchChannelStatic);
+            USBMIDI.setHandleAfterTouchPoly(handleAfterTouchPolyStatic);
             USBMIDI.setHandlePitchBend(handlePitchBendStatic);
+            USBMIDI.setHandleStart(handleStartStatic);
+            USBMIDI.setHandleStop(handleStopStatic);
+            USBMIDI.setHandleContinue(handleContinueStatic);
+            USBMIDI.setHandleClock(handleClockStatic);
+            // USBMIDI.setHandleSongPosition(handleSongPositionStatic);
+            USBMIDI.setHandleSongSelect(handleSongSelectStatic);
 #endif
 
             isInitialized = true;
-
-            Serial.print("Loaded ");
-            Serial.print(peerStorage.peerCount);
-            Serial.println(" peers from EEPROM");
         }
 
         void loop()
@@ -267,6 +314,305 @@ namespace enomik
             io.loop();
         }
 
+        bool sendNoteOn(byte channel, byte note, byte velocity)
+        {
+            auto err = espnowMIDI.sendNoteOn(note, velocity, channel);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+
+                USBMIDI.sendNoteOn(channel, note, velocity);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendNoteOff(byte channel, byte note, byte velocity)
+        {
+            auto err = espnowMIDI.sendNoteOff(note, velocity, channel);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendNoteOff(channel, note, velocity);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendControlChange(byte channel, byte control, byte value)
+        {
+            auto err = espnowMIDI.sendControlChange(control, value, channel);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendControlChange(channel, control, value);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendProgramChange(byte channel, byte program)
+        {
+            auto err = espnowMIDI.sendProgramChange(program, channel);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendProgramChange(channel, program);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendAfterTouch(byte channel, byte pressure)
+        {
+            auto err = espnowMIDI.sendAfterTouch(pressure, channel);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendAfterTouch(channel, pressure);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendPolyAfterTouch(byte channel, byte note, byte pressure)
+        {
+            auto err = espnowMIDI.sendAfterTouchPoly(note, pressure, channel);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendAfterTouch(channel, note, pressure);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendPitchBend(byte channel, uint16_t value)
+        {
+            auto err = espnowMIDI.sendPitchBend(value, channel);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendPitchBend(channel, value);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendStart()
+        {
+            auto err = espnowMIDI.sendStart();
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendStart();
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendStop()
+        {
+            auto err = espnowMIDI.sendStop();
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendStop();
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendContinue()
+        {
+            auto err = espnowMIDI.sendContinue();
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendContinue();
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendClock()
+        {
+            auto err = espnowMIDI.sendClock();
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendClock();
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendSongPosition(uint16_t value)
+        {
+            auto err = espnowMIDI.sendSongPosition(value);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendSongPosition(value);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendSongSelect(uint8_t value)
+        {
+            auto err = espnowMIDI.sendSongSelect(value);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendSongSelect(value);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+
+        bool sendSysEx(const uint8_t *data, uint16_t length)
+        {
+            auto err = espnowMIDI.sendSysex((uint8_t *)data, length);
+#ifdef HAS_USB_MIDI
+            if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
+            {
+                USBMIDI.sendSysEx(length, data);
+            }
+#endif
+            if (err != ESP_OK)
+            {
+                return false; // ESP-NOW failed
+            }
+            return true;
+        }
+        // --- Channel Voice ---
+        void setHandleNoteOn(std::function<void(byte channel, byte note, byte velocity)> handler)
+        {
+            _onNoteOnHandler = handler;
+        }
+
+        void setHandleNoteOff(std::function<void(byte channel, byte note, byte velocity)> handler)
+        {
+            _onNoteOffHandler = handler;
+        }
+
+        void setHandleControlChange(std::function<void(byte channel, byte control, byte value)> handler)
+        {
+            _onControlChangeHandler = handler;
+        }
+
+        void setHandleProgramChange(std::function<void(byte channel, byte program)> handler)
+        {
+            _onProgramChangeHandler = handler;
+        }
+
+        void setHandleAfterTouchChannel(std::function<void(byte channel, byte pressure)> handler)
+        {
+            _onAfterTouchChannelHandler = handler;
+        }
+
+        void setHandleAfterTouchPoly(std::function<void(byte channel, byte note, byte pressure)> handler)
+        {
+            _onAfterTouchPolyHandler = handler;
+        }
+
+        void setHandlePitchBend(std::function<void(byte channel, int value)> handler)
+        {
+            _onPitchBendHandler = handler;
+        }
+
+        // --- System Real-Time ---
+        void setHandleStart(std::function<void()> handler)
+        {
+            _onStartHandler = handler;
+        }
+
+        void setHandleStop(std::function<void()> handler)
+        {
+            _onStopHandler = handler;
+        }
+
+        void setHandleContinue(std::function<void()> handler)
+        {
+            _onContinueHandler = handler;
+        }
+
+        void setHandleClock(std::function<void()> handler)
+        {
+            _onClockHandler = handler;
+        }
+
+        // --- System Common ---
+        void setHandleSongPosition(std::function<void(uint16_t songPosition)> handler)
+        {
+            _onSongPositionHandler = handler;
+        }
+
+        void setHandleSongSelect(std::function<void(byte songNumber)> handler)
+        {
+            _onSongSelectHandler = handler;
+        }
+
+        // --- System Exclusive ---
+        void setHandleSysEx(std::function<void(uint8_t *data, unsigned int length)> handler)
+        {
+            _onSysExHandler = handler;
+        }
+
+        // Simplified peer management - delegates to PeerStorage
         bool addPeer(const uint8_t mac[6])
         {
             if (!isInitialized)
@@ -275,210 +621,84 @@ namespace enomik
                 return false;
             }
 
-            if (macExists(mac))
+            // Add to storage first
+            if (!peerStorage.add(mac))
             {
-                Serial.println("Peer already exists");
                 return false;
             }
 
-            if (peerStorage.peerCount >= MAX_PEERS)
-            {
-                Serial.println("Maximum peers reached");
-                return false;
-            }
-
-            if (!midi.addPeer(mac))
+            // Then add to ESP-NOW
+            if (!espnowMIDI.addPeer(mac))
             {
                 Serial.println("Failed to add peer to ESP-NOW");
+                // Rollback storage change
+                peerStorage.remove(mac);
                 return false;
             }
-
-            memcpy(peerStorage.peers[peerStorage.peerCount], mac, MAC_ADDRESS_SIZE);
-            peerStorage.peerCount++;
-
-            savePeersToEEPROM();
-
-            Serial.print("Added peer: ");
-            printMac(mac);
-            Serial.print(" (Total: ");
-            Serial.print(peerStorage.peerCount);
-            Serial.println(")");
 
             return true;
         }
 
-        uint8_t *getPeer(int index)
+        bool addPeerFromString(const String &macStr)
         {
-            if (index < 0 || index >= peerStorage.peerCount)
+            uint8_t mac[6];
+            if (!macFromString(macStr, mac))
             {
-                return nullptr;
+                return false;
             }
-            return peerStorage.peers[index];
+            return addPeer(mac);
         }
 
-        int getPeerCount()
+        bool removePeer(const uint8_t *mac)
         {
-            return peerStorage.peerCount;
-        }
-
-        bool removePeer(uint8_t *mac)
-        {
-            for (int i = 0; i < peerStorage.peerCount; i++)
+            if (peerStorage.remove(mac))
             {
-                if (memcmp(peerStorage.peers[i], mac, MAC_ADDRESS_SIZE) == 0)
-                {
-                    for (int j = i; j < peerStorage.peerCount - 1; j++)
-                    {
-                        memcpy(peerStorage.peers[j], peerStorage.peers[j + 1], MAC_ADDRESS_SIZE);
-                    }
-                    peerStorage.peerCount--;
-                    memset(peerStorage.peers[peerStorage.peerCount], 0, MAC_ADDRESS_SIZE);
-                    savePeersToEEPROM();
-
-                    Serial.print("Removed peer: ");
-                    printMac(mac);
-                    Serial.println();
-                    return true;
-                }
+                // Also remove from ESP-NOW if needed
+                // midi.removePeer(mac);  // if your midi class supports this
+                return true;
             }
             return false;
         }
 
         bool removePeer(int index)
         {
-            if (index < 0 || index >= peerStorage.peerCount)
+            const uint8_t *mac = peerStorage.get(index);
+            if (mac)
             {
-                return false;
+                return removePeer(mac);
             }
-            return removePeer(peerStorage.peers[index]);
+            return false;
         }
 
         void clearAllPeers()
         {
-            peerStorage.peerCount = 0;
-            memset(peerStorage.peers, 0, sizeof(peerStorage.peers));
-            savePeersToEEPROM();
-            Serial.println("All peers cleared");
+            peerStorage.clear();
+            // Also clear ESP-NOW peers if needed
         }
 
         void listPeers()
         {
-            Serial.print("Stored peers (");
-            Serial.print(peerStorage.peerCount);
-            Serial.println("):");
+            peerStorage.printAll();
+        }
 
-            for (int i = 0; i < peerStorage.peerCount; i++)
-            {
-                Serial.print("  [");
-                Serial.print(i);
-                Serial.print("]: ");
-                printMac(peerStorage.peers[i]);
-                Serial.println();
-            }
+        int getPeerCount()
+        {
+            return peerStorage.count();
+        }
 
-            if (peerStorage.peerCount == 0)
-            {
-                Serial.println("  No peers stored");
-            }
+        const uint8_t *getPeer(int index)
+        {
+            return peerStorage.get(index);
         }
 
         String getMacString(int index)
         {
-            if (index < 0 || index >= peerStorage.peerCount)
+            const uint8_t *mac = peerStorage.get(index);
+            if (!mac)
             {
                 return "";
             }
-
-            String macStr = "";
-            for (int i = 0; i < MAC_ADDRESS_SIZE; i++)
-            {
-                if (peerStorage.peers[index][i] < 16)
-                    macStr += "0";
-                macStr += String(peerStorage.peers[index][i], HEX);
-                if (i < MAC_ADDRESS_SIZE - 1)
-                    macStr += ":";
-            }
-            macStr.toUpperCase();
-            return macStr;
-        }
-
-        bool addPeerFromString(String macStr)
-        {
-            macStr.trim();
-            macStr.toUpperCase();
-
-            if (macStr.length() != 17)
-            {
-                Serial.println("Invalid MAC length. Expected format: XX:XX:XX:XX:XX:XX");
-                return false;
-            }
-
-            uint8_t mac[6];
-            int bytePositions[6] = {0, 3, 6, 9, 12, 15};
-
-            for (int i = 0; i < 6; i++)
-            {
-                int pos = bytePositions[i];
-                if (pos + 1 >= macStr.length())
-                {
-                    Serial.println("MAC string too short");
-                    return false;
-                }
-
-                char char1 = macStr.charAt(pos);
-                char char2 = macStr.charAt(pos + 1);
-
-                if (!((char1 >= '0' && char1 <= '9') || (char1 >= 'A' && char1 <= 'F')) ||
-                    !((char2 >= '0' && char2 <= '9') || (char2 >= 'A' && char2 <= 'F')))
-                {
-                    Serial.print("Invalid hex characters at position ");
-                    Serial.print(pos);
-                    Serial.print(": ");
-                    Serial.print(char1);
-                    Serial.println(char2);
-                    return false;
-                }
-
-                uint8_t nibble1 = (char1 >= '0' && char1 <= '9') ? (char1 - '0') : (char1 - 'A' + 10);
-                uint8_t nibble2 = (char2 >= '0' && char2 <= '9') ? (char2 - '0') : (char2 - 'A' + 10);
-
-                mac[i] = (nibble1 << 4) | nibble2;
-
-                if (i < 5)
-                {
-                    if (pos + 2 >= macStr.length() || macStr.charAt(pos + 2) != ':')
-                    {
-                        Serial.print("Missing colon after byte ");
-                        Serial.println(i);
-                        return false;
-                    }
-                }
-            }
-
-            Serial.print("Parsed MAC bytes: ");
-            for (int i = 0; i < 6; i++)
-            {
-                Serial.print("0x");
-                if (mac[i] < 16)
-                    Serial.print("0");
-                Serial.print(mac[i], HEX);
-                if (i < 5)
-                    Serial.print(", ");
-            }
-            Serial.println();
-
-            Serial.print("Formatted MAC: ");
-            for (int i = 0; i < 6; i++)
-            {
-                if (mac[i] < 16)
-                    Serial.print("0");
-                Serial.print(mac[i], HEX);
-                if (i < 5)
-                    Serial.print(":");
-            }
-            Serial.println();
-
-            return addPeer(mac);
+            return macToString(mac);
         }
     };
 

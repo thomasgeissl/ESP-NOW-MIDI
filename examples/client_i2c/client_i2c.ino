@@ -65,13 +65,13 @@ void setup() {
 
   // all of these midi handlers are optional, depends on the usecase, very often you just wanna send data and not receive
   // e.g. this can be used for calibration, or maybe you wanna connect an amp via i2s and render some sound
-  _client.midi.setHandleNoteOn(onNoteOn);
-  _client.midi.setHandleNoteOff(onNoteOff);
-  _client.midi.setHandleControlChange(onControlChange);
-  _client.midi.setHandleProgramChange(onProgramChange);
-  _client.midi.setHandlePitchBend(onPitchBend);
-  _client.midi.setHandleAfterTouchChannel(onAfterTouch);
-  _client.midi.setHandleAfterTouchPoly(onPolyAfterTouch);
+  _client.espnowMIDI.setHandleNoteOn(onNoteOn);
+  _client.espnowMIDI.setHandleNoteOff(onNoteOff);
+  _client.espnowMIDI.setHandleControlChange(onControlChange);
+  _client.espnowMIDI.setHandleProgramChange(onProgramChange);
+  _client.espnowMIDI.setHandlePitchBend(onPitchBend);
+  _client.espnowMIDI.setHandleAfterTouchChannel(onAfterTouch);
+  _client.espnowMIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
 
 
   Serial.println("setting up sensors");
@@ -100,24 +100,23 @@ void loop() {
     sensors_event_t a, g, temp;
     _mpu.getEvent(&a, &g, &temp);
     Serial.print(a.acceleration.x);
-    // esp_err_t result =
     if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_X)) {
-      _client.midi.sendControlChange(CC_MPU6050_ACCELERATION_X, map(a.acceleration.x, -10, 10, 0, 127), 1);
+      _client.sendControlChange(CC_MPU6050_ACCELERATION_X, map(a.acceleration.x, -10, 10, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_Y)) {
-      _client.midi.sendControlChange(CC_MPU6050_ACCELERATION_Y, map(a.acceleration.y, -10, 10, 0, 127), 1);
+      _client.sendControlChange(CC_MPU6050_ACCELERATION_Y, map(a.acceleration.y, -10, 10, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ACCELERATION_Z)) {
-      _client.midi.sendControlChange(CC_MPU6050_ACCELERATION_Z, map(a.acceleration.z, -10, 10, 0, 127), 1);
+      _client.sendControlChange(CC_MPU6050_ACCELERATION_Z, map(a.acceleration.z, -10, 10, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_X)) {
-      _client.midi.sendControlChange(CC_MPU6050_ORIENTATION_X, map(g.orientation.x, -5000, 5000, 0, 127), 1);
+      _client.sendControlChange(CC_MPU6050_ORIENTATION_X, map(g.orientation.x, -5000, 5000, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_Y)) {
-      _client.midi.sendControlChange(CC_MPU6050_ORIENTATION_Y, map(g.orientation.y, -5000, 5000, 0, 127), 1);
+      _client.sendControlChange(CC_MPU6050_ORIENTATION_Y, map(g.orientation.y, -5000, 5000, 0, 127), 1);
     }
     if (shouldSendControlChangeMessage(CC_MPU6050_ORIENTATION_Z)) {
-      _client.midi.sendControlChange(CC_MPU6050_ORIENTATION_Z, map(g.orientation.z, -5000, 5000, 0, 127), 1);
+      _client.sendControlChange(CC_MPU6050_ORIENTATION_Z, map(g.orientation.z, -5000, 5000, 0, 127), 1);
     }
   }
   return;

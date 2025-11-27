@@ -7,15 +7,15 @@ enomik::Client _client;
 
 
 void onStart() {
-  esp_err_t result = _client.midi.sendNoteOn(60, 127, 1);
+  bool success = _client.sendNoteOn(60, 127, 1);
   Serial.println("start");
 }
 void onStop() {
-  esp_err_t result = _client.midi.sendNoteOff(60, 0, 1);
+  bool success = _client.sendNoteOff(60, 0, 1);
   Serial.println("stop");
 }
 void onContinue() {
-  esp_err_t result = _client.midi.sendNoteOn(60, 127, 1);
+  bool success = _client.sendNoteOn(60, 127, 1);
   Serial.println("continue");
 }
 
@@ -24,13 +24,13 @@ void onClock() {
 }
 
 void onSongPosition(int value) {
-  esp_err_t result = _client.midi.sendNoteOn(127, 127, 1);
+  bool success = _client.sendNoteOn(127, 127, 1);
   Serial.print("song position: ");
   Serial.print(value);
 }
 
 void onSongSelect(int value) {
-  esp_err_t result = _client.midi.sendNoteOn(126, 127, 1);
+  bool success = _client.sendNoteOn(126, 127, 1);
   Serial.print("song: ");
   Serial.print(value);
 }
@@ -48,17 +48,17 @@ void setup() {
   _client.begin();
   _client.addPeer(peerMacAddress);
 
-  _client.midi.setHandleStart(onStart);
-  _client.midi.setHandleStop(onStop);
-  _client.midi.setHandleContinue(onContinue);
-  _client.midi.setHandleClock(onClock);
-  _client.midi.setHandleNoteOn(onNoteOn);
-  _client.midi.setHandleSongPosition(onSongPosition);
-  _client.midi.setHandleSongSelect(onSongSelect);
+  _client.setHandleStart(onStart);
+  _client.setHandleStop(onStop);
+  _client.setHandleContinue(onContinue);
+  _client.setHandleClock(onClock);
+  _client.setHandleNoteOn(onNoteOn);
+  _client.setHandleSongPosition(onSongPosition);
+  _client.setHandleSongSelect(onSongSelect);
 
   //send any midi message to register at the dongle
   delay(1000);
-  esp_err_t result = _client.midi.sendControlChange(127, 127, 16);
+  bool success = _client.sendControlChange(127, 127, 16);
 }
 
 void loop() {
