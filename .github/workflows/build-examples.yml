@@ -1,11 +1,14 @@
-
 name: Build ESP32-S2 Mini Sketches
 
 on:
   push:
-    branches: [ main, refactor/enomik ]
+    branches: 
+      - main
+      - refactor/enomik
   pull_request:
-    branches: [ main ]
+    branches: 
+      - main
+      - refactor/enomik
 
 jobs:
   build:
