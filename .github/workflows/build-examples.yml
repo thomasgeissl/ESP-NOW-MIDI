@@ -4,11 +4,11 @@ on:
   push:
     branches: 
       - main
-      - refactor/enomik
+      - feature/enomik
   pull_request:
     branches: 
       - main
-      - refactor/enomik
+      - feature/enomik
 
 jobs:
   build:
