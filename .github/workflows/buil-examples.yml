@@ -8,8 +8,6 @@ pull_request:
 jobs:
 build:
 runs-on: ubuntu-latest
-
-```
 steps:
 - name: Checkout repository
   uses: actions/checkout@v3
@@ -39,4 +37,3 @@ steps:
   with:
     name: esp32s2-bin-files
     path: build/
-```
