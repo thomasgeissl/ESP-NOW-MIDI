@@ -30,7 +30,7 @@ namespace enomik
         std::function<void(byte channel, byte program)> _onProgramChangeHandler;
         std::function<void(byte channel, byte pressure)> _onAfterTouchChannelHandler;         // Channel aftertouch
         std::function<void(byte channel, byte note, byte pressure)> _onAfterTouchPolyHandler; // Poly aftertouch
-        std::function<void(byte channel, int value)> _onPitchBendHandler;
+        std::function<void(byte channel, int value)> _onPitchBendHandler;//uint16_t
 
         // --- System Real-Time ---
         std::function<void()> _onStartHandler;
@@ -88,11 +88,14 @@ namespace enomik
         // --- Static handlers that call both IO and user-defined callbacks ---
         static void handleNoteOnStatic(byte channel, byte note, byte velocity)
         {
+            Serial.println("handleNoteOnStatic");
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onNoteOn(channel, note, velocity);
-                if (Client::instancePtr->_onNoteOnHandler)
+                if (Client::instancePtr->_onNoteOnHandler){
+                    Serial.println("calling user onNoteOnHandler");
                     Client::instancePtr->_onNoteOnHandler(channel, note, velocity);
+                }
             }
         }
 
@@ -140,13 +143,13 @@ namespace enomik
         {
             if (Client::instancePtr)
             {
-                // Client::instancePtr->io.onAfterTouchPoly(note, pressure, channel);
+                // Client::instancePtr->io.onAfterTouchPoly(channel, note, pressure);
                 if (Client::instancePtr->_onAfterTouchPolyHandler)
                     Client::instancePtr->_onAfterTouchPolyHandler(channel, note, pressure);
             }
         }
 
-        static void handlePitchBendStatic(byte channel, int value)
+        static void handlePitchBendStatic(byte channel, int value)//uint16_t
         {
             if (Client::instancePtr)
             {
@@ -250,25 +253,6 @@ namespace enomik
             // Initialize ESP-NOW MIDI
             espnowMIDI.setup();
 
-            // Initialize peer storage (handles EEPROM internally)
-            if (!peerStorage.begin())
-            {
-                Serial.println("Failed to initialize peer storage");
-                return;
-            }
-
-            // Restore all peers from storage to ESP-NOW
-            for (int i = 0; i < peerStorage.count(); i++)
-            {
-                const uint8_t *mac = peerStorage.get(i);
-                if (mac)
-                {
-                    espnowMIDI.addPeer(mac);
-                    Serial.print("Restored peer: ");
-                    Serial.println(macToString(mac));
-                }
-            }
-
             // --- Set handlers for ESP-NOW ---
             // espnowMIDI.setHandleSysEx(handleSysExStatic);
             espnowMIDI.setHandleNoteOn(handleNoteOnStatic);
@@ -303,6 +287,26 @@ namespace enomik
             USBMIDI.setHandleSongSelect(handleSongSelectStatic);
 #endif
 
+            // Initialize peer storage (handles EEPROM internally)
+            if (!peerStorage.begin())
+            {
+                Serial.println("Failed to initialize peer storage");
+                return;
+            }
+
+            // Restore all peers from storage to ESP-NOW
+            for (int i = 0; i < peerStorage.count(); i++)
+            {
+                const uint8_t *mac = peerStorage.get(i);
+                if (mac)
+                {
+                    espnowMIDI.addPeer(mac);
+                    Serial.print("Restored peer: ");
+                    Serial.println(macToString(mac));
+                }
+            }
+
+
             isInitialized = true;
         }
 
@@ -314,14 +318,14 @@ namespace enomik
             io.loop();
         }
 
-        bool sendNoteOn(byte channel, byte note, byte velocity)
+        bool sendNoteOn(byte note, byte velocity, byte channel)
         {
             auto err = espnowMIDI.sendNoteOn(note, velocity, channel);
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {
 
-                USBMIDI.sendNoteOn(channel, note, velocity);
+                USBMIDI.sendNoteOn(note, velocity, channel);
             }
 #endif
             if (err != ESP_OK)
@@ -331,13 +335,13 @@ namespace enomik
             return true;
         }
 
-        bool sendNoteOff(byte channel, byte note, byte velocity)
+        bool sendNoteOff(byte note, byte velocity, byte channel)
         {
             auto err = espnowMIDI.sendNoteOff(note, velocity, channel);
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {
-                USBMIDI.sendNoteOff(channel, note, velocity);
+                USBMIDI.sendNoteOff(note, velocity, channel);
             }
 #endif
             if (err != ESP_OK)
@@ -347,13 +351,13 @@ namespace enomik
             return true;
         }
 
-        bool sendControlChange(byte channel, byte control, byte value)
+        bool sendControlChange(byte control, byte value, byte channel)
         {
             auto err = espnowMIDI.sendControlChange(control, value, channel);
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {
-                USBMIDI.sendControlChange(channel, control, value);
+                USBMIDI.sendControlChange(control, value, channel);
             }
 #endif
             if (err != ESP_OK)
@@ -363,13 +367,13 @@ namespace enomik
             return true;
         }
 
-        bool sendProgramChange(byte channel, byte program)
+        bool sendProgramChange(byte program, byte channel)
         {
             auto err = espnowMIDI.sendProgramChange(program, channel);
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {
-                USBMIDI.sendProgramChange(channel, program);
+                USBMIDI.sendProgramChange(program, channel);
             }
 #endif
             if (err != ESP_OK)
@@ -379,13 +383,13 @@ namespace enomik
             return true;
         }
 
-        bool sendAfterTouch(byte channel, byte pressure)
+        bool sendAfterTouch(byte pressure, byte channel)
         {
             auto err = espnowMIDI.sendAfterTouch(pressure, channel);
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {
-                USBMIDI.sendAfterTouch(channel, pressure);
+                USBMIDI.sendAfterTouch(pressure, channel);
             }
 #endif
             if (err != ESP_OK)
@@ -395,13 +399,13 @@ namespace enomik
             return true;
         }
 
-        bool sendPolyAfterTouch(byte channel, byte note, byte pressure)
+        bool sendPolyAfterTouch(byte note, byte pressure, byte channel)
         {
             auto err = espnowMIDI.sendAfterTouchPoly(note, pressure, channel);
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {
-                USBMIDI.sendAfterTouch(channel, note, pressure);
+                USBMIDI.sendAfterTouch(note, pressure, channel);
             }
 #endif
             if (err != ESP_OK)
@@ -411,13 +415,13 @@ namespace enomik
             return true;
         }
 
-        bool sendPitchBend(byte channel, uint16_t value)
+        bool sendPitchBend(int value, byte channel)//uint16_t
         {
             auto err = espnowMIDI.sendPitchBend(value, channel);
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {
-                USBMIDI.sendPitchBend(channel, value);
+                USBMIDI.sendPitchBend(value, channel);
             }
 #endif
             if (err != ESP_OK)
@@ -569,7 +573,7 @@ namespace enomik
             _onAfterTouchPolyHandler = handler;
         }
 
-        void setHandlePitchBend(std::function<void(byte channel, int value)> handler)
+        void setHandlePitchBend(std::function<void(byte channel, int value)> handler)//uint16_t
         {
             _onPitchBendHandler = handler;
         }

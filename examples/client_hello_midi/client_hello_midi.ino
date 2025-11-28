@@ -4,6 +4,7 @@
 // uint8_t peerMacAddress[6] = { 0x48, 0x27, 0xE2, 0x47, 0x3D, 0x74 };
 uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
 enomik::Client _client;
+byte channel = 1;
 
 
 void onNoteOn(byte channel, byte note, byte velocity) {
@@ -22,7 +23,7 @@ void onProgramChange(byte channel, byte program) {
   Serial.printf("Program Change - Channel: %d, Program: %d\n", channel, program);
 }
 
-void onPitchBend(byte channel, int value) {
+void onPitchBend(byte channel, uint16_t value) {
   Serial.printf("Pitch Bend - Channel: %d, Value: %d\n", channel, value);
 }
 void onAfterTouch(byte channel, byte value) {
@@ -71,15 +72,17 @@ void loop() {
     Serial.println("Error sending the data");
   }
   delay(100);
-  success = _client.sendNoteOff(60, 0, 1);
+  success = _client.sendNoteOff(60, 0, channel);
   delay(100);
-  success = _client.sendControlChange(1, 127, 1);
+  success = _client.sendControlChange(1, 127, channel);
   delay(100);
-  success = _client.sendControlChange(1, 0, 1);
+  success = _client.sendControlChange(1, 0, channel);
   delay(100);
-  success = _client.sendPitchBend(1, 16383);
+  success = _client.sendPitchBend(-8192, channel);
   delay(100);
-  success = _client.sendPitchBend(1, 0);
+  success = _client.sendPitchBend(0, channel);
+  delay(100);
+  success = _client.sendPitchBend(8191, channel);
 
   delay(2000);
 }

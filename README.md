@@ -7,11 +7,38 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
 
 ## use it basically everywhere
 * the dongle shows up as a class compliant midi controller
-* use it with MAX, pd, any DAW, processing, openFrameworks, any game engine that supports MIDI, ... or even in the browser
+* use it with MAX, pd, any DAW, processing, openFrameworks, any game engine that supports MIDI, ... or even in the browser or mobile phone
+
+## Features
+* **enomik::Client I/O** MIDI sysex configuratable client: zero programming for basic I/O, e.g. digital input 3 -> MIDI CC
+* **enomik::Client MIDI wrapper** Helper that takes care of the ESP-NOW setup, provides a common interface for USB and ESP-NOW MIDI
+* **examples**
+  * **print_mac**: periodically prints the mac address to the serial monitor
+  * **dongle**: this is your esp now midi interface to your computer or any other usb midi host. it converts esp now message to midi messages, requires a midi capable board, e.g. esp32 s2 mini.
+  the config.h you can disable the display - in case you are not using one
+  if you wanna put them into a case, you can probably find 3d models online, here is one for an esp32 s2 mini: https://www.thingiverse.com/thing:5427531
+  * **client_hello_midi**: simple demo firmware that periodically sends midi messages via esp now
+  * **client (wip)**: fully configurable client that includes already a couple of common sensors and exposes touch, digital and analog pins
+  * mpu6050 (gy521) - accelerometer, gyro, temperature
+  * vl53l0x - time of flight distance sensor
+  * **client_dac_i2s (wip)** - synth that can be controlled via dongle, e.g. send midi notes from a DAW to the dongle midi device - ** this is currently broken **
+  * **client_waveshare-esp32-s3-relay-6ch** - simple relay controller that listens to note on/off messages, e.g. control solenoids 
+  * **client_buttons** - reads button press/release and sends note on/off accordingly
+  * **client_dmx** - control your dmx fixtures wirelessly
+    * CC MSB/LSB mapping
+      * MIDI Ch 1, CC 0 (MSB) + CC 32 (LSB) -> DMX Channel 1
+      * MIDI Ch 1, CC 1 (MSB) + CC 33 (LSB) -> DMX Channel 2
+      * MIDI Ch 1, CC 31 (MSB) + CC 63 (LSB) -> DMX Channel 32
+      * MIDI Ch 2, CC 0 (MSB) + CC 32 (LSB) -> DMX Channel 33
+      * MIDI Ch 16, CC 31 (MSB) + CC 63 (LSB) -> DMX Channel 512
+    * NOTEON direct mapping
+      * MIDI Ch 1, NOTE 0, VEL: 127 -> DMX Channel 1, value: 127*2
+      * MIDI Ch 4, NOTE 127, VEL: 127 -> DMX Channel 512, value: 127*2
 
 ## breaking changes
 ESP32 Boards version 3.3.0 require library version 0.6.0 or higher for compatibility.
 Please note that ESP-NOW function signatures have changed in this version.
+
 
 ## usage
 1. Upload the print_mac example to an ESP32-S2 Mini board. The MAC address will be printed to via serial, or if you have a display connect to the dongle, you can skip this step, as the mac address will be printed on the display.
@@ -28,27 +55,7 @@ if you are using a display then make sure you have set `HAS_DISPLAY 1` in config
 There is also a circuit python version of this library, only for the sender at the moment. Please be aware that it is not yet tested. Feedback is very welcome.
 
 ## examples
-* **print_mac**: periodically prints the mac address to the serial monitor
-* **dongle**: this is your esp now midi interface to your computer or any other usb midi host. it converts esp now message to midi messages, requires a midi capable board, e.g. esp32 s2 mini.
-the config.h you can disable the display - in case you are not using one
-if you wanna put them into a case, you can probably find 3d models online, here is one for an esp32 s2 mini: https://www.thingiverse.com/thing:5427531
-* **client_hello_midi**: simple demo firmware that periodically sends midi messages via esp now
-* **client (wip)**: fully configurable client that includes already a couple of common sensors and exposes touch, digital and analog pins
-  * mpu6050 (gy521) - accelerometer, gyro, temperature
-  * vl53l0x - time of flight distance sensor
-* **client_dac_i2s (wip)** - synth that can be controlled via dongle, e.g. send midi notes from a DAW to the dongle midi device - ** this is currently broken **
-* **client_waveshare-esp32-s3-relay-6ch** - simple relay controller that listens to note on/off messages, e.g. control solenoids 
-* **client_buttons** - reads button press/release and sends note on/off accordingly
-* **client_dmx** - control your dmx fixtures wirelessly
-  * CC MSB/LSB mapping
-    * MIDI Ch 1, CC 0 (MSB) + CC 32 (LSB) -> DMX Channel 1
-    * MIDI Ch 1, CC 1 (MSB) + CC 33 (LSB) -> DMX Channel 2
-    * MIDI Ch 1, CC 31 (MSB) + CC 63 (LSB) -> DMX Channel 32
-    * MIDI Ch 2, CC 0 (MSB) + CC 32 (LSB) -> DMX Channel 33
-    * MIDI Ch 16, CC 31 (MSB) + CC 63 (LSB) -> DMX Channel 512
-  * NOTEON direct mapping
-    * MIDI Ch 1, NOTE 0, VEL: 127 -> DMX Channel 1, value: 127*2
-    * MIDI Ch 4, NOTE 127, VEL: 127 -> DMX Channel 512, value: 127*2
+
 
 ## dependencies
 * dependencies for the library should be automatically installed

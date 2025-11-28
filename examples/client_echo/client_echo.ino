@@ -36,6 +36,7 @@ void setup() {
   _client.begin();
   _client.addPeer(peerMacAddress);
 
+  _client.setHandleNoteOn(onNoteOn);
   _client.setHandleNoteOff(onNoteOff);
   _client.setHandleControlChange(onControlChange);
   _client.setHandleProgramChange(onProgramChange);
