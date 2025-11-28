@@ -59,7 +59,7 @@ if you are using a display then make sure you have set `HAS_DISPLAY 1` in config
 1. pin_mode: 0x00 (INPUT), 0x01 (OUTPUT), 0x02 (INPUT_PULLUP), 0x03(ANALOG_INPUT), 0x04(ANALOG_OUTPUT)
 1. midi channel: 1-16
 1. midi type: midi status byte divided by 2, e.g. CC (0xB0, 176) => (0x58, 88)
-2. end: 0xF7
+1. end: 0xF7
 
 * e.g. reset and clear pin configs: `0xF0, 0x7D, 0x09, 0xF7`
 * e.g. configure pin 3 to read digital values and send out CC: `0xF0, 0x7D, 0x01, 0x03, 0x02, 0x58, 0xF7`

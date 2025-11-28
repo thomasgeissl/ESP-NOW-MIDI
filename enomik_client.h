@@ -30,7 +30,7 @@ namespace enomik
         std::function<void(byte channel, byte program)> _onProgramChangeHandler;
         std::function<void(byte channel, byte pressure)> _onAfterTouchChannelHandler;         // Channel aftertouch
         std::function<void(byte channel, byte note, byte pressure)> _onAfterTouchPolyHandler; // Poly aftertouch
-        std::function<void(byte channel, int value)> _onPitchBendHandler;//uint16_t
+        std::function<void(byte channel, int value)> _onPitchBendHandler;                     // uint16_t
 
         // --- System Real-Time ---
         std::function<void()> _onStartHandler;
@@ -70,7 +70,8 @@ namespace enomik
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onNoteOn(channel, note, velocity);
-                if (Client::instancePtr->_onNoteOnHandler){
+                if (Client::instancePtr->_onNoteOnHandler)
+                {
                     Serial.println("calling user onNoteOnHandler");
                     Client::instancePtr->_onNoteOnHandler(channel, note, velocity);
                 }
@@ -127,7 +128,7 @@ namespace enomik
             }
         }
 
-        static void handlePitchBendStatic(byte channel, int value)//uint16_t
+        static void handlePitchBendStatic(byte channel, int value) // uint16_t
         {
             if (Client::instancePtr)
             {
@@ -201,7 +202,69 @@ namespace enomik
             io.begin();
             io.setOnMIDISendRequest([this](midi_message msg)
                                     {
-                                        // this->midi.sendToAllPeers((uint8_t *)&msg, sizeof(msg));
+                                        //send ESP-NOW MIDI
+                                        // this->espnowMIDI.sendToAllPeers((uint8_t *)&msg, sizeof(msg));
+
+                                        switch(msg.status) {
+                                            case MIDI_NOTE_ON:
+                                                sendNoteOn(msg.firstByte, msg.secondByte, msg.channel);
+                                                break;
+                                            case MIDI_NOTE_OFF:
+                                                sendNoteOff(msg.firstByte, msg.secondByte, msg.channel);
+                                                break;
+                                            case MIDI_CONTROL_CHANGE:
+                                                sendControlChange(msg.firstByte, msg.secondByte, msg.channel);
+                                                break;
+                                            case MIDI_PROGRAM_CHANGE:
+                                                sendProgramChange(msg.firstByte, msg.channel);
+                                                break;
+                                                case MIDI_PITCH_BEND:
+                                                {
+                                                    int value = (msg.secondByte << 7) | msg.firstByte;
+                                                    sendPitchBend(value, msg.channel);
+                                                    break;
+                                                }
+                                                case MIDI_AFTERTOUCH:
+                                                {
+                                                    sendAfterTouch(msg.firstByte, msg.channel);
+                                                    break;
+                                                }
+                                                case MIDI_POLY_AFTERTOUCH:
+                                                {
+                                                    sendPolyAfterTouch(msg.firstByte, msg.secondByte, msg.channel);
+                                                    break;
+                                                }
+                                                case MIDI_START:
+                                                    sendStart();
+                                                    break;
+                                                case MIDI_STOP:
+                                                    sendStop();
+                                                    break;
+                                                case MIDI_CONTINUE:
+                                                    sendContinue();
+                                                    break;
+                                                case MIDI_TIME_CLOCK:
+                                                    sendClock();
+                                                    break;
+                                                case MIDI_TIME_CODE:
+                                                    break;
+                                                case MIDI_SONG_POS_POINTER:
+                                                {
+                                                    uint16_t songPos = (msg.secondByte << 7) | msg.firstByte;
+                                                    sendSongPosition(songPos);
+                                                    break;
+                                                }
+                                                case MIDI_SONG_SELECT:
+                                                    sendSongSelect(msg.firstByte);
+                                                    break;      
+                                            default:
+                                                Serial.println("Sent other MIDI message");
+                                        } });
+                                        // TODO: this should be part of the other handler
+            io.setOnSysExSendRequest([this](midi_sysex_message msg)
+                                     { 
+
+                                        this->sendSysEx(msg.data, msg.length);
                                     });
 
 #ifdef HAS_USB_MIDI
@@ -283,7 +346,6 @@ namespace enomik
                     Serial.println(macToString(mac));
                 }
             }
-
 
             isInitialized = true;
         }
@@ -393,7 +455,7 @@ namespace enomik
             return true;
         }
 
-        bool sendPitchBend(int value, byte channel)//uint16_t
+        bool sendPitchBend(int value, byte channel) // uint16_t
         {
             auto err = espnowMIDI.sendPitchBend(value, channel);
 #ifdef HAS_USB_MIDI
@@ -551,7 +613,7 @@ namespace enomik
             _onAfterTouchPolyHandler = handler;
         }
 
-        void setHandlePitchBend(std::function<void(byte channel, int value)> handler)//uint16_t
+        void setHandlePitchBend(std::function<void(byte channel, int value)> handler) // uint16_t
         {
             _onPitchBendHandler = handler;
         }

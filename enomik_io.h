@@ -336,7 +336,7 @@ namespace enomik
             }
         }
 
-        void setOnSysExSendRequest(std::function<void(const uint8_t *, uint16_t)> callback)
+        void setOnSysExSendRequest(std::function<void(midi_sysex_message)> callback)
         {
             _onSysExSendRequest = callback;
         }
@@ -356,7 +356,7 @@ namespace enomik
         std::vector<PinConfig> _pinConfigs;
         std::vector<PinState> _pinStates;
         std::function<void(midi_message)> _onMIDISendRequest;
-        std::function<void(const uint8_t *, uint16_t)> _onSysExSendRequest;
+        std::function<void(midi_sysex_message)> _onSysExSendRequest;
         Preferences _preferences;
 
         void initializePinHardware(const PinConfig &c)
@@ -528,7 +528,10 @@ namespace enomik
                 uint8_t resp[] = {0xF0, 0x7D,
                                   static_cast<uint8_t>(SysExCommand::CLEAR_PIN_CONFIGS),
                                   0x00, 0xF7};
-                _onSysExSendRequest(resp, sizeof(resp));
+                midi_sysex_message msg;
+                msg.length = sizeof(resp);
+                memcpy(msg.data, resp, sizeof(resp));
+                _onSysExSendRequest(msg);
             }
         }
 
@@ -558,7 +561,10 @@ namespace enomik
                         uint8_t resp[] = {0xF0, 0x7D,
                                           static_cast<uint8_t>(SysExCommand::DELETE_PIN_CONFIG),
                                           pin, 0x00, 0xF7};
-                        _onSysExSendRequest(resp, sizeof(resp));
+                        midi_sysex_message msg;
+                        msg.length = sizeof(resp);
+                        memcpy(msg.data, resp, sizeof(resp));
+                        _onSysExSendRequest(msg);
                     }
 
                     return;
@@ -584,8 +590,11 @@ namespace enomik
                 c.min_midi_value,
                 c.max_midi_value,
                 0xF7};
+            midi_sysex_message msg;
+            msg.length = sizeof(resp);
+            memcpy(msg.data, resp, sizeof(resp));
 
-            _onSysExSendRequest(resp, sizeof(resp));
+            _onSysExSendRequest(msg);
         }
     };
 };

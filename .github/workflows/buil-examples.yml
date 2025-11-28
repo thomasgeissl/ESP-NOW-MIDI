@@ -1,0 +1,42 @@
+name: Build ESP32-S2 Mini Sketches
+
+on:
+push:
+branches: [ main, refactor/enomik ]
+pull_request:
+
+jobs:
+build:
+runs-on: ubuntu-latest
+
+```
+steps:
+- name: Checkout repository
+  uses: actions/checkout@v3
+
+- name: Install Arduino CLI
+  run: |
+    curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+    echo "$HOME/.arduino15/bin" >> $GITHUB_PATH
+
+- name: Configure Arduino CLI
+  run: |
+    arduino-cli core update-index
+    arduino-cli core install esp32:esp32
+
+- name: Compile all examples
+  run: |
+    mkdir -p build
+    for sketch in examples/*; do
+      if [ -d "$sketch" ]; then
+        echo "Building $sketch"
+        arduino-cli compile --fqbn esp32:esp32:esp32s2mini "$sketch" --output-dir build/"$(basename $sketch)"
+      fi
+    done
+
+- name: Upload binaries
+  uses: actions/upload-artifact@v3
+  with:
+    name: esp32s2-bin-files
+    path: build/
+```
