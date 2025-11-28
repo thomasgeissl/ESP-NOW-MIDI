@@ -30,6 +30,17 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
           
+      - name: Install library dependencies
+        run: |
+          # Create Arduino libraries directory
+          mkdir -p $HOME/Arduino/libraries
+          
+          # Symlink this repository as a library so examples can find it
+          ln -s $GITHUB_WORKSPACE $HOME/Arduino/libraries/ESP-NOW-MIDI
+          
+          # Install any external dependencies (add more as needed)
+          arduino-cli lib install "Adafruit TinyUSB Library"
+          
       - name: Compile all examples
         run: |
           mkdir -p build
