@@ -59,30 +59,8 @@ namespace enomik
 
         void onSystemExclusive(uint8_t *data, unsigned int length)
         {
-            Serial.println("got sysex message");
-            if (length < 7)
-            {
-                Serial.println("sysex message too short");
-                return;
-            }
-            uint8_t manufacturerId = data[1];
-            uint8_t inputOutput = data[2];
-            uint8_t pin = data[3];
-            uint8_t pinMode = data[4];
-            uint8_t midiType = data[5] * 2;
-            Serial.print("Manufacturer ID: ");
-            Serial.println(manufacturerId, HEX);
-            Serial.print("Input/Output: ");
-            Serial.println(inputOutput);
-            Serial.print("Pin: ");
-            Serial.println(pin);
-            Serial.print("Pin Mode: ");
-            Serial.println(pinMode);
-            Serial.print("MIDI Type: ");
-            Serial.println(midiType);
-
-            enomik::PinConfig config(pin, pinMode);
-            io.addPinConfig(config);
+            io.onSysEx(data, length);
+            // TODO: implement eonomik sysex and then call client handler if set
         }
 
         // --- Static handlers that call both IO and user-defined callbacks ---

@@ -1,4 +1,5 @@
 #include <vector>
+#include <Preferences.h>
 #include "esp_now_midi.h"
 
 namespace enomik
@@ -9,10 +10,14 @@ namespace enomik
         OUTPUT_PIN
     };
 
+    // Pin mode constants for clarity
+    static constexpr uint8_t ANALOG_INPUT = 0x03;
+    static constexpr uint8_t ANALOG_OUTPUT = 0x04;
+
     struct PinConfig
     {
         uint8_t pin;
-        uint8_t mode; // INPUT, OUTPUT, INPUT_PULLUP (Arduino constants)
+        uint8_t mode;
         uint8_t midi_channel = 1;
         MidiStatus midi_type = MidiStatus::MIDI_CONTROL_CHANGE;
         uint8_t midi_cc = 0;
@@ -21,92 +26,190 @@ namespace enomik
         uint8_t max_midi_value = 127;
 
         PinConfig(uint8_t p, uint8_t m)
-            : pin(p), mode(m)
-        {
-        }
+            : pin(p), mode(m) {}
     };
+
+    struct PinState
+    {
+        int lastValue = -1;
+        unsigned long lastChangeTime = 0;
+        unsigned long lastSendTime = 0;
+        float smoothedValue = 0;
+    };
+
+    enum class SysExCommand : uint8_t
+    {
+        SET_PIN_CONFIG = 0x01,
+        GET_PIN_CONFIG = 0x02,
+        CLEAR_PIN_CONFIGS = 0x03,
+        GET_ALL_PIN_CONFIGS = 0x04,
+        DELETE_PIN_CONFIG = 0x05,
+        RESET = 0x09
+    };
+
     class IO
     {
     public:
+        static constexpr unsigned long DEBOUNCE_MS = 50;
+        static constexpr int ANALOG_THRESHOLD = 4;
+        static constexpr unsigned long ANALOG_MIN_INTERVAL = 10;
+        static constexpr float SMOOTHING_FACTOR = 0.3f;
+
         void begin()
         {
+            _pinConfigs = loadPinConfigsFromPrefs();
+            _pinStates.clear();
+
+            for (const auto &config : _pinConfigs)
+            {
+                initializePinHardware(config);
+                _pinStates.push_back(PinState());
+            }
         }
+
         void loop()
         {
-            for (auto &config : _pinConfigs)
-            {
-                auto value = 0;
-                midi_message message;
-                message.channel = config.midi_channel;
-                message.status = config.midi_type;
+            unsigned long now = millis();
 
-                if (!_onMIDISendRequest)
-                {
-                    return;
-                }
-                if(config.mode == OUTPUT || config.mode == 0x04) //digital out or pwm out
-                {
-                    continue; // skip outputs
-                }
+            for (size_t i = 0; i < _pinConfigs.size(); i++)
+            {
+                auto &config = _pinConfigs[i];
+                auto &state = _pinStates[i];
+
+                if (config.mode == OUTPUT || config.mode == ANALOG_OUTPUT)
+                    continue;
+
+                int currentValue = 0;
+                bool shouldSend = false;
 
                 if (config.mode == INPUT || config.mode == INPUT_PULLUP)
                 {
-                    value = digitalRead(config.pin);
+                    currentValue = digitalRead(config.pin);
+                    if (currentValue != state.lastValue)
+                    {
+                        if (now - state.lastChangeTime < DEBOUNCE_MS)
+                            continue;
+
+                        state.lastChangeTime = now;
+                        shouldSend = true;
+                    }
                 }
-                else if (config.mode == 0x03)
-                { // analog input
-                    value = analogRead(config.pin);
+                else if (config.mode == ANALOG_INPUT)
+                {
+                    int rawValue = analogRead(config.pin);
+
+                    if (state.lastValue == -1)
+                        state.smoothedValue = rawValue;
+                    else
+                        state.smoothedValue = (SMOOTHING_FACTOR * rawValue) +
+                                              (1.0f - SMOOTHING_FACTOR) * state.smoothedValue;
+
+                    int mappedValue = map((int)state.smoothedValue, 0, 4095,
+                                          config.min_midi_value, config.max_midi_value);
+                    mappedValue = constrain(mappedValue, 0, 127);
+                    currentValue = mappedValue;
+
+                    if (state.lastValue != -1 && abs(currentValue - state.lastValue) < ANALOG_THRESHOLD)
+                        continue;
+
+                    if (now - state.lastSendTime < ANALOG_MIN_INTERVAL)
+                        continue;
+
+                    shouldSend = true;
                 }
 
-                if (config.midi_type == MidiStatus::MIDI_NOTE_OFF)
-                { // CC
-                    message.firstByte = config.midi_note;
-                    // TODO: map value to 0-127
-                    message.secondByte = value & 0x7F;
-                    _onMIDISendRequest(message);
-                }
-                else if (config.midi_type == MidiStatus::MIDI_NOTE_ON)
-                { // Note On
-                    message.firstByte = config.midi_note;
-                    // TODO: map value to 0-127
-                    message.secondByte = value & 0x7F;
-                    _onMIDISendRequest(message);
-                }
-                else if (config.midi_type == MidiStatus::MIDI_CONTROL_CHANGE)
-                { // CC
-                    message.firstByte = config.midi_cc;
-                    // TODO: map value to 0-127
-                    message.secondByte = value & 0x7F;
-                    _onMIDISendRequest(message);
-                }
-                else if (config.midi_type == 224)
-                { // Pitch Bend
-                  // _client.midi.sendPitchBend(value, config.midi_channel);
+                if (shouldSend)
+                {
+                    state.lastValue = currentValue;
+                    state.lastSendTime = now;
+                    sendMidiMessage(config, currentValue);
                 }
             }
         }
+
         void addPinConfig(const PinConfig &config)
         {
-            if (config.mode == OUTPUT)
-            {
-                pinMode(config.pin, OUTPUT);
-            }
-            else if (config.mode == INPUT || config.mode == INPUT_PULLUP)
-            {
-                pinMode(config.pin, config.mode);
-            }
-            else if (config.mode == 0x03)
-            { // analog input
-              // no pinMode needed
-            }
-            else if (config.mode == 0x04)
-            { // analog output/PWM output
-              // ledcSetup(config.pin, 5000, 8); // 5kHz, 8-bit resolution
-              // ledcAttachPin(config.pin, config.pin);
-            }
+            initializePinHardware(config);
             _pinConfigs.push_back(config);
-            // TODO: does this need a short delay to settle?
+            _pinStates.push_back(PinState());
+            savePinConfigsToPrefs(_pinConfigs);
+
+            Serial.println("Pin config added");
+            Serial.println("size: " + String(_pinConfigs.size()));
+            printPinConfigs();
         }
+        void upsertPinConfig(const PinConfig &config)
+        {
+            Serial.println("=== UPSERT START ===");
+            Serial.print("Upserting pin: ");
+            Serial.println(config.pin);
+            Serial.print("Current config count: ");
+            Serial.println(_pinConfigs.size());
+
+            // Debug: print all current pins
+            for (size_t i = 0; i < _pinConfigs.size(); i++)
+            {
+                Serial.print("  Existing pin: ");
+                Serial.println(_pinConfigs[i].pin);
+            }
+
+            bool removed = false;
+            for (size_t i = 0; i < _pinConfigs.size(); i++)
+            {
+                if (_pinConfigs[i].pin == config.pin)
+                {
+                    Serial.print("Removing existing config at index: ");
+                    Serial.println(i);
+                    _pinConfigs.erase(_pinConfigs.begin() + i);
+                    _pinStates.erase(_pinStates.begin() + i);
+                    removed = true;
+                    break;
+                }
+            }
+
+            if (!removed)
+            {
+                Serial.println("No existing config found - adding new");
+            }
+
+            Serial.print("Adding new config for pin: ");
+            Serial.println(config.pin);
+            _pinConfigs.push_back(config);
+            _pinStates.push_back(PinState());
+            initializePinHardware(config);
+
+            Serial.print("Config count after: ");
+            Serial.println(_pinConfigs.size());
+            savePinConfigsToPrefs(_pinConfigs);
+            Serial.println("=== UPSERT END ===");
+        }
+
+        void printPinConfigs()
+        {
+            Serial.println("=== Pin Configurations ===");
+            for (size_t i = 0; i < _pinConfigs.size(); i++)
+            {
+                const auto &cfg = _pinConfigs[i];
+                Serial.print("Pin: ");
+                Serial.print(cfg.pin);
+                Serial.print(" | Mode: ");
+                Serial.print(cfg.mode);
+                Serial.print(" | MIDI Channel: ");
+                Serial.print(cfg.midi_channel);
+                Serial.print(" | MIDI Type: ");
+                Serial.print(static_cast<uint8_t>(cfg.midi_type));
+                Serial.print(" | CC: ");
+                Serial.print(cfg.midi_cc);
+                Serial.print(" | Note: ");
+                Serial.print(cfg.midi_note);
+                Serial.print(" | Min MIDI: ");
+                Serial.print(cfg.min_midi_value);
+                Serial.print(" | Max MIDI: ");
+                Serial.println(cfg.max_midi_value);
+            }
+            Serial.println("==========================");
+        }
+
         void setOnMIDISendRequest(std::function<void(midi_message)> callback)
         {
             _onMIDISendRequest = callback;
@@ -116,80 +219,373 @@ namespace enomik
         {
             for (auto &config : _pinConfigs)
             {
-                if (config.midi_type == MidiStatus::MIDI_NOTE_ON && config.midi_channel == channel && config.midi_note == note)
+                if (config.midi_type == MidiStatus::MIDI_NOTE_ON &&
+                    config.midi_channel == channel &&
+                    config.midi_note == note)
                 {
                     if (config.mode == OUTPUT)
                     {
                         digitalWrite(config.pin, velocity > 0 ? HIGH : LOW);
                     }
-                    else if (config.mode == 0x04)
-                    {                                          // analog output/PWM
-                        analogWrite(config.pin, velocity * 2); // TODO: map correctly
+                    else if (config.mode == ANALOG_OUTPUT)
+                    {
+                        int mappedValue = map(velocity, 0, 127,
+                                              config.min_midi_value, config.max_midi_value);
+                        analogWrite(config.pin, mappedValue);
                     }
                 }
             }
         }
+
         void onNoteOff(byte channel, byte note, byte velocity)
         {
             for (auto &config : _pinConfigs)
             {
-                if (config.midi_type == MidiStatus::MIDI_NOTE_OFF && config.midi_channel == channel && config.midi_note == note)
+                if (config.midi_type == MidiStatus::MIDI_NOTE_OFF &&
+                    config.midi_channel == channel &&
+                    config.midi_note == note)
                 {
                     if (config.mode == OUTPUT)
                     {
                         digitalWrite(config.pin, LOW);
                     }
-                    else if (config.mode == 0x04)
-                    { // analog output/PWM
-                        analogWrite(config.pin, LOW);
+                    else if (config.mode == ANALOG_OUTPUT)
+                    {
+                        analogWrite(config.pin, 0);
                     }
                 }
             }
         }
+
         void onPitchBend(byte channel, int bend)
         {
             for (auto &config : _pinConfigs)
             {
-                if (config.midi_type == MidiStatus::MIDI_PITCH_BEND && config.midi_channel == channel)
+                if (config.midi_type == MidiStatus::MIDI_PITCH_BEND &&
+                    config.midi_channel == channel)
                 {
                     if (config.mode == OUTPUT)
                     {
-                        // Map bend value to 0-255 for 8-bit resolution
-                        analogWrite(config.pin, bend < 8192 ? LOW : HIGH);
+                        digitalWrite(config.pin, bend >= 8192 ? HIGH : LOW);
                     }
-                    else if (config.mode == 0x04)
-                    {                                                  // analog output/PWM
-                        int mappedValue = map(bend, 0, 16383, 0, 255); // TODO: map to correct range based on config
-                        analogWrite(config.pin, mappedValue);
+                    else if (config.mode == ANALOG_OUTPUT)
+                    {
+                        int mappedValue = map(bend, 0, 16383,
+                                              config.min_midi_value, config.max_midi_value);
+                        analogWrite(config.pin, constrain(mappedValue, 0, 255));
                     }
                 }
             }
         }
+
         void onControlChange(byte channel, byte control, byte value)
         {
             for (auto &config : _pinConfigs)
             {
-                if (config.midi_type == MidiStatus::MIDI_CONTROL_CHANGE && config.midi_channel == channel && config.midi_cc == control)
+                if (config.midi_type == MidiStatus::MIDI_CONTROL_CHANGE &&
+                    config.midi_channel == channel &&
+                    config.midi_cc == control)
                 {
                     if (config.mode == OUTPUT)
                     {
-                        analogWrite(config.pin, value); // assuming value is 0-127, may need mapping
+                        digitalWrite(config.pin, value > 63 ? HIGH : LOW);
                     }
-                    else if (config.mode == 0x04)
-                    {                                                 // analog output/PWM
-                        int mappedValue = map(value, 0, 127, 0, 255); // TODO: map to correct range based on config
-                        analogWrite(config.pin, mappedValue);
+                    else if (config.mode == ANALOG_OUTPUT)
+                    {
+                        int mappedValue = map(value, 0, 127,
+                                              config.min_midi_value, config.max_midi_value);
+                        analogWrite(config.pin, constrain(mappedValue, 0, 255));
                     }
                 }
             }
         }
+
         void onProgramChange(byte channel, byte program)
         {
-            // TODO:
+        }
+
+        void onSysEx(const uint8_t *data, uint16_t length)
+        {
+            if (length < 4)
+                return;
+
+            SysExCommand command = static_cast<SysExCommand>(data[2]);
+            Serial.println(static_cast<uint8_t>(command), HEX);
+            uint16_t offset = 3;
+
+            switch (command)
+            {
+            case SysExCommand::RESET:
+                handleReset();
+                break;
+            case SysExCommand::SET_PIN_CONFIG:
+                handleSetPinConfig(data + offset, length - offset - 1);
+                break;
+            case SysExCommand::GET_PIN_CONFIG:
+                handleGetPinConfig(data + offset, length - offset - 1);
+                break;
+            case SysExCommand::CLEAR_PIN_CONFIGS:
+                handleClearPinConfigs();
+                break;
+            case SysExCommand::GET_ALL_PIN_CONFIGS:
+                handleGetAllPinConfigs();
+                break;
+            case SysExCommand::DELETE_PIN_CONFIG:
+                handleDeletePinConfig(data + offset, length - offset - 1);
+                break;
+            }
+        }
+
+        void setOnSysExSendRequest(std::function<void(const uint8_t *, uint16_t)> callback)
+        {
+            _onSysExSendRequest = callback;
+        }
+
+        void savePinConfigs()
+        {
+            savePinConfigsToPrefs(_pinConfigs);
+        }
+
+        void loadPinConfigs()
+        {
+            _pinConfigs = loadPinConfigsFromPrefs();
+            _pinStates.assign(_pinConfigs.size(), PinState());
         }
 
     private:
         std::vector<PinConfig> _pinConfigs;
+        std::vector<PinState> _pinStates;
         std::function<void(midi_message)> _onMIDISendRequest;
+        std::function<void(const uint8_t *, uint16_t)> _onSysExSendRequest;
+        Preferences _preferences;
+
+        void initializePinHardware(const PinConfig &c)
+        {
+            if (c.mode == OUTPUT)
+            {
+                pinMode(c.pin, OUTPUT);
+            }
+            else if (c.mode == INPUT || c.mode == INPUT_PULLUP)
+            {
+                pinMode(c.pin, c.mode);
+            }
+        }
+
+        void sendMidiMessage(const PinConfig &config, int value)
+        {
+            if (!_onMIDISendRequest)
+                return;
+
+            midi_message msg;
+            msg.channel = config.midi_channel;
+            msg.status = config.midi_type;
+
+            switch (config.midi_type)
+            {
+            case MidiStatus::MIDI_NOTE_ON:
+            case MidiStatus::MIDI_NOTE_OFF:
+                msg.firstByte = config.midi_note;
+                msg.secondByte = value & 0x7F;
+                break;
+
+            case MidiStatus::MIDI_CONTROL_CHANGE:
+                msg.firstByte = config.midi_cc;
+                msg.secondByte = value & 0x7F;
+                break;
+
+            case MidiStatus::MIDI_PITCH_BEND:
+            {
+                int pb = map(value, 0, 127, 0, 16383);
+                msg.firstByte = pb & 0x7F;
+                msg.secondByte = (pb >> 7) & 0x7F;
+                break;
+            }
+            }
+
+            _onMIDISendRequest(msg);
+        }
+
+        void savePinConfigsToPrefs(const std::vector<PinConfig> &configs)
+        {
+            _preferences.begin("pinconfigs", false);
+
+            for (size_t i = 0; i < configs.size(); i++)
+            {
+                String key = "cfg" + String(i);
+                uint8_t buf[8] = {
+                    configs[i].pin,
+                    configs[i].mode,
+                    configs[i].midi_channel,
+                    static_cast<uint8_t>(configs[i].midi_type),
+                    configs[i].midi_cc,
+                    configs[i].midi_note,
+                    configs[i].min_midi_value,
+                    configs[i].max_midi_value};
+                _preferences.putBytes(key.c_str(), buf, sizeof(buf));
+            }
+
+            _preferences.putUInt("count", configs.size());
+            _preferences.end();
+        }
+
+        std::vector<PinConfig> loadPinConfigsFromPrefs()
+        {
+            std::vector<PinConfig> out;
+
+            _preferences.begin("pinconfigs", true);
+            size_t count = _preferences.getUInt("count", 0);
+
+            for (size_t i = 0; i < count; i++)
+            {
+                String key = "cfg" + String(i);
+                uint8_t buf[8];
+
+                if (_preferences.getBytes(key.c_str(), buf, 8) == 8)
+                {
+                    PinConfig cfg(buf[0], buf[1]);
+                    cfg.midi_channel = buf[2];
+                    cfg.midi_type = static_cast<MidiStatus>(buf[3]);
+                    cfg.midi_cc = buf[4];
+                    cfg.midi_note = buf[5];
+                    cfg.min_midi_value = buf[6];
+                    cfg.max_midi_value = buf[7];
+                    out.push_back(cfg);
+                }
+            }
+
+            _preferences.end();
+            return out;
+        }
+
+        void handleReset()
+        {
+            Serial.println("Performing system reset...");
+
+            // Clear in-memory pin configurations
+            _pinConfigs.clear();
+            _pinStates.clear();
+
+            // Clear stored preferences
+            _preferences.begin("pinconfigs", false);
+            _preferences.clear(); // Erases all keys in the namespace
+            _preferences.end();
+
+            Serial.println("All pin configurations and preferences cleared.");
+
+            // Optionally, notify via SysEx
+            // if (_onSysExSendRequest)
+            // {
+            //     uint8_t resp[] = {0xF0, 0x7D,
+            //                       static_cast<uint8_t>(SysExCommand::RESET),
+            //                       0x00, 0xF7};
+            //     _onSysExSendRequest(resp, sizeof(resp));
+            // }
+        }
+
+        void handleSetPinConfig(const uint8_t *d, uint16_t len)
+        {
+            if (len < 6)
+                return;
+
+            PinConfig cfg(d[0], d[1]);
+            cfg.midi_channel = d[2];
+            cfg.midi_type = static_cast<MidiStatus>(d[3]);
+            cfg.midi_cc = d[4];
+            cfg.midi_note = d[4];
+            cfg.min_midi_value = d[5];
+            cfg.max_midi_value = d[6];
+
+            upsertPinConfig(cfg);
+            sendGetPinConfigResponse(cfg);
+        }
+
+        void handleGetPinConfig(const uint8_t *d, uint16_t len)
+        {
+            if (len < 1)
+                return;
+
+            uint8_t pin = d[0];
+
+            for (const auto &cfg : _pinConfigs)
+            {
+                if (cfg.pin == pin)
+                {
+                    sendGetPinConfigResponse(cfg);
+                    return;
+                }
+            }
+        }
+
+        void handleClearPinConfigs()
+        {
+            _pinConfigs.clear();
+            _pinStates.clear();
+
+            savePinConfigsToPrefs(_pinConfigs);
+
+            if (_onSysExSendRequest)
+            {
+                uint8_t resp[] = {0xF0, 0x7D,
+                                  static_cast<uint8_t>(SysExCommand::CLEAR_PIN_CONFIGS),
+                                  0x00, 0xF7};
+                _onSysExSendRequest(resp, sizeof(resp));
+            }
+        }
+
+        void handleGetAllPinConfigs()
+        {
+            for (const auto &cfg : _pinConfigs)
+                sendGetPinConfigResponse(cfg);
+        }
+
+        void handleDeletePinConfig(const uint8_t *d, uint16_t len)
+        {
+            if (len < 1)
+                return;
+
+            uint8_t pin = d[0];
+
+            for (size_t i = 0; i < _pinConfigs.size(); i++)
+            {
+                if (_pinConfigs[i].pin == pin)
+                {
+                    _pinConfigs.erase(_pinConfigs.begin() + i);
+                    _pinStates.erase(_pinStates.begin() + i);
+                    savePinConfigsToPrefs(_pinConfigs);
+
+                    if (_onSysExSendRequest)
+                    {
+                        uint8_t resp[] = {0xF0, 0x7D,
+                                          static_cast<uint8_t>(SysExCommand::DELETE_PIN_CONFIG),
+                                          pin, 0x00, 0xF7};
+                        _onSysExSendRequest(resp, sizeof(resp));
+                    }
+
+                    return;
+                }
+            }
+        }
+
+        void sendGetPinConfigResponse(const PinConfig &c)
+        {
+            if (!_onSysExSendRequest)
+                return;
+
+            uint8_t resp[] = {
+                0xF0,
+                0x7D,
+                static_cast<uint8_t>(SysExCommand::GET_PIN_CONFIG),
+                c.pin,
+                c.mode,
+                c.midi_channel,
+                static_cast<uint8_t>(c.midi_type),
+                c.midi_cc,
+                c.midi_note,
+                c.min_midi_value,
+                c.max_midi_value,
+                0xF7};
+
+            _onSysExSendRequest(resp, sizeof(resp));
+        }
     };
 };
