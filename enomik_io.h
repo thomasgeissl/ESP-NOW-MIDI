@@ -1,6 +1,7 @@
 #include <vector>
 #include <Preferences.h>
 #include "esp_now_midi.h"
+#include "utils/mac.h"
 
 namespace enomik
 {
@@ -44,6 +45,8 @@ namespace enomik
         CLEAR_PIN_CONFIGS = 0x03,
         GET_ALL_PIN_CONFIGS = 0x04,
         DELETE_PIN_CONFIG = 0x05,
+        ADD_PEER = 0x07,
+        GET_PEERS = 0x08,
         RESET = 0x09
     };
 
@@ -214,6 +217,10 @@ namespace enomik
         {
             _onMIDISendRequest = callback;
         }
+        void setOnAddPeerRequest(std::function<void(uint8_t mac[])> callback)
+        {
+            _onAddPeerRequest = callback;
+        }
 
         void onNoteOn(byte channel, byte note, byte velocity)
         {
@@ -310,11 +317,16 @@ namespace enomik
                 return;
 
             SysExCommand command = static_cast<SysExCommand>(data[2]);
-            Serial.println(static_cast<uint8_t>(command), HEX);
             uint16_t offset = 3;
 
             switch (command)
             {
+            case SysExCommand::ADD_PEER:
+                handleAddPeer(data + offset, length - offset - 1);
+                break;
+            case SysExCommand::GET_PEERS:
+                handleGetPeers();
+                break;
             case SysExCommand::RESET:
                 handleReset();
                 break;
@@ -357,6 +369,7 @@ namespace enomik
         std::vector<PinState> _pinStates;
         std::function<void(midi_message)> _onMIDISendRequest;
         std::function<void(midi_sysex_message)> _onSysExSendRequest;
+        std::function<void(uint8_t mac[])> _onAddPeerRequest;
         Preferences _preferences;
 
         void initializePinHardware(const PinConfig &c)
@@ -457,6 +470,24 @@ namespace enomik
             return out;
         }
 
+        void handleAddPeer(const uint8_t *d, uint16_t len)
+        {
+            if (len < 6)
+                return;
+            uint8_t mac[6];
+            memcpy(mac, d, 6);
+            if(_onAddPeerRequest) {
+                _onAddPeerRequest(mac);
+            }
+        }
+        void handleGetPeers()
+        {
+            Serial.println("Handling GET_PEERS SysEx command");
+            // if (_onGetPeersRequest)
+            // {
+            //     _onGetPeersRequest();
+            // }
+        }
         void handleReset()
         {
             Serial.println("Performing system reset...");
@@ -585,8 +616,7 @@ namespace enomik
                 c.mode,
                 c.midi_channel,
                 static_cast<uint8_t>(c.midi_type),
-                c.midi_cc,
-                c.midi_note,
+                c.midi_type == MidiStatus::MIDI_CONTROL_CHANGE ? c.midi_cc : c.midi_note,
                 c.min_midi_value,
                 c.max_midi_value,
                 0xF7};

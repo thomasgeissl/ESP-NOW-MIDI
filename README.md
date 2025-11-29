@@ -52,6 +52,7 @@ if you are planning to send midi messages from your computer to your other esp32
 if you are using a display then make sure you have set `HAS_DISPLAY 1` in config.h 
 
 ## sysex interface
+### set pin config
 1. start: 0xF0
 1. manufacturer id: 0x7D
 1. command id: 0x01 (set pin config), 0x09 (reset)
@@ -59,11 +60,20 @@ if you are using a display then make sure you have set `HAS_DISPLAY 1` in config
 1. pin_mode: 0x00 (INPUT), 0x01 (OUTPUT), 0x02 (INPUT_PULLUP), 0x03(ANALOG_INPUT), 0x04(ANALOG_OUTPUT)
 1. midi channel: 1-16
 1. midi type: midi status byte divided by 2, e.g. CC (0xB0, 176) => (0x58, 88)
+1. controller or note: e.g. 3C,60
+1. midi min: 0
+1. midi max: 1
+1. end: 0xF7
+
+* e.g. configure pin 3 to read digital values and send out CC: `0xF0, 0x7D, 0x01, 0x03, 0x02, 0x58, 0xF7`
+
+### reset
+1. start: 0xF0
+1. manufacturer id: 0x7D
+1. command id:  0x09 (reset)
 1. end: 0xF7
 
 * e.g. reset and clear pin configs: `0xF0, 0x7D, 0x09, 0xF7`
-* e.g. configure pin 3 to read digital values and send out CC: `0xF0, 0x7D, 0x01, 0x03, 0x02, 0x58, 0xF7`
-
 
 ## dependencies
 * dependencies for the library should be automatically installed

@@ -260,12 +260,29 @@ namespace enomik
                                             default:
                                                 Serial.println("Sent other MIDI message");
                                         } });
-                                        // TODO: this should be part of the other handler
+            // TODO: this should be part of the other handler
             io.setOnSysExSendRequest([this](midi_sysex_message msg)
-                                     { 
-
-                                        this->sendSysEx(msg.data, msg.length);
-                                    });
+                                     { this->sendSysEx(msg.data, msg.length); });
+            io.setOnAddPeerRequest([this](uint8_t mac[])
+                                   {
+                                                              Serial.println("IO requested to add peer:");
+                                                              macPrint(mac);
+                                                              if (this->espnowMIDI.addPeer(mac))
+                                                              {
+                                                                  // Store peer in persistent storage
+                                                                  if (this->peerStorage.add(mac))
+                                                                  {
+                                                                      Serial.println("Peer added and stored successfully");
+                                                                  }
+                                                                  else
+                                                                  {
+                                                                      Serial.println("Failed to store peer");
+                                                                  }
+                                                              }
+                                                              else
+                                                              {
+                                                                  Serial.println("Failed to add peer to ESP-NOW");
+                                                              } });
 
 #ifdef HAS_USB_MIDI
             // Initialize USB MIDI using global instance
