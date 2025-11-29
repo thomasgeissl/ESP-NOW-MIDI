@@ -221,6 +221,14 @@ namespace enomik
         {
             _onAddPeerRequest = callback;
         }
+        void setOnGetPeersRequest(std::function<void()> callback)
+        {
+            _onGetPeersRequest = callback;
+        }
+        void setOnResetRequest(std::function<void()> callback)
+        {
+            _onResetRequest = callback;
+        }
 
         void onNoteOn(byte channel, byte note, byte velocity)
         {
@@ -370,6 +378,8 @@ namespace enomik
         std::function<void(midi_message)> _onMIDISendRequest;
         std::function<void(midi_sysex_message)> _onSysExSendRequest;
         std::function<void(uint8_t mac[])> _onAddPeerRequest;
+        std::function<void()> _onGetPeersRequest;
+        std::function<void()> _onResetRequest;
         Preferences _preferences;
 
         void initializePinHardware(const PinConfig &c)
@@ -472,21 +482,31 @@ namespace enomik
 
         void handleAddPeer(const uint8_t *d, uint16_t len)
         {
-            if (len < 6)
+            if (len < 12) // Need 12 nibbles for 6 MAC bytes
                 return;
+
             uint8_t mac[6];
-            memcpy(mac, d, 6);
-            if(_onAddPeerRequest) {
+
+            // Decode nibbles back to bytes
+            for (int i = 0; i < 6; i++)
+            {
+                uint8_t high_nibble = d[i * 2];
+                uint8_t low_nibble = d[i * 2 + 1];
+                mac[i] = (high_nibble << 4) | low_nibble;
+            }
+
+            if (_onAddPeerRequest)
+            {
                 _onAddPeerRequest(mac);
             }
         }
+
         void handleGetPeers()
         {
-            Serial.println("Handling GET_PEERS SysEx command");
-            // if (_onGetPeersRequest)
-            // {
-            //     _onGetPeersRequest();
-            // }
+            if (_onGetPeersRequest)
+            {
+                _onGetPeersRequest();
+            }
         }
         void handleReset()
         {
@@ -501,6 +521,11 @@ namespace enomik
             _preferences.clear(); // Erases all keys in the namespace
             _preferences.end();
 
+
+            if(_onResetRequest)
+            {
+                _onResetRequest();
+            }
             Serial.println("All pin configurations and preferences cleared.");
 
             // Optionally, notify via SysEx
