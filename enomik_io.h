@@ -12,8 +12,11 @@ namespace enomik
     };
 
     // Pin mode constants for clarity
-    static constexpr uint8_t ANALOG_INPUT = 0x03;
-    static constexpr uint8_t ANALOG_OUTPUT = 0x04;
+    static constexpr uint8_t ENOMIK_INPUT = 0x00;
+    static constexpr uint8_t ENOMIK_OUTPUT = 0x01;
+    static constexpr uint8_t ENOMIK_INPUT_PULLUP = 0x02;//INPUT_PULLUP == 5
+    static constexpr uint8_t ENOMIK_ANALOG_INPUT = 0x03;
+    static constexpr uint8_t ENOMIK_ANALOG_OUTPUT = 0x04;
 
     struct PinConfig
     {
@@ -79,25 +82,26 @@ namespace enomik
                 auto &config = _pinConfigs[i];
                 auto &state = _pinStates[i];
 
-                if (config.mode == OUTPUT || config.mode == ANALOG_OUTPUT)
+                if (config.mode == ENOMIK_OUTPUT || config.mode == ENOMIK_ANALOG_OUTPUT)
                     continue;
 
                 int currentValue = 0;
                 bool shouldSend = false;
 
-                if (config.mode == INPUT || config.mode == INPUT_PULLUP)
+                if (config.mode == ENOMIK_INPUT || config.mode == ENOMIK_INPUT_PULLUP)
                 {
                     currentValue = digitalRead(config.pin);
                     if (currentValue != state.lastValue)
                     {
-                        if (now - state.lastChangeTime < DEBOUNCE_MS)
-                            continue;
+                        Serial.println("Pin " + String(config.pin) + " changed to " + String(currentValue));
+                        // if (now - state.lastChangeTime < DEBOUNCE_MS)
+                        //     continue;
 
                         state.lastChangeTime = now;
                         shouldSend = true;
                     }
                 }
-                else if (config.mode == ANALOG_INPUT)
+                else if (config.mode == ENOMIK_ANALOG_INPUT)
                 {
                     int rawValue = analogRead(config.pin);
 
@@ -238,11 +242,11 @@ namespace enomik
                     config.midi_channel == channel &&
                     config.midi_note == note)
                 {
-                    if (config.mode == OUTPUT)
+                    if (config.mode == ENOMIK_OUTPUT)
                     {
                         digitalWrite(config.pin, velocity > 0 ? HIGH : LOW);
                     }
-                    else if (config.mode == ANALOG_OUTPUT)
+                    else if (config.mode == ENOMIK_ANALOG_OUTPUT)
                     {
                         int mappedValue = map(velocity, 0, 127,
                                               config.min_midi_value, config.max_midi_value);
@@ -264,7 +268,7 @@ namespace enomik
                     {
                         digitalWrite(config.pin, LOW);
                     }
-                    else if (config.mode == ANALOG_OUTPUT)
+                    else if (config.mode == ENOMIK_ANALOG_OUTPUT)
                     {
                         analogWrite(config.pin, 0);
                     }
@@ -283,7 +287,7 @@ namespace enomik
                     {
                         digitalWrite(config.pin, bend >= 8192 ? HIGH : LOW);
                     }
-                    else if (config.mode == ANALOG_OUTPUT)
+                    else if (config.mode == ENOMIK_ANALOG_OUTPUT)
                     {
                         int mappedValue = map(bend, 0, 16383,
                                               config.min_midi_value, config.max_midi_value);
@@ -301,11 +305,11 @@ namespace enomik
                     config.midi_channel == channel &&
                     config.midi_cc == control)
                 {
-                    if (config.mode == OUTPUT)
+                    if (config.mode == ENOMIK_OUTPUT)
                     {
                         digitalWrite(config.pin, value > 63 ? HIGH : LOW);
                     }
-                    else if (config.mode == ANALOG_OUTPUT)
+                    else if (config.mode == ENOMIK_ANALOG_OUTPUT)
                     {
                         int mappedValue = map(value, 0, 127,
                                               config.min_midi_value, config.max_midi_value);
@@ -384,18 +388,25 @@ namespace enomik
 
         void initializePinHardware(const PinConfig &c)
         {
-            if (c.mode == OUTPUT)
+            if (c.mode == ENOMIK_OUTPUT)
             {
                 pinMode(c.pin, OUTPUT);
             }
-            else if (c.mode == INPUT || c.mode == INPUT_PULLUP)
+            else if (c.mode == ENOMIK_INPUT)
             {
-                pinMode(c.pin, c.mode);
+                pinMode(c.pin, INPUT);
+            }
+            else if (c.mode == ENOMIK_INPUT_PULLUP)
+            {
+                pinMode(c.pin, INPUT_PULLUP);
             }
         }
 
         void sendMidiMessage(const PinConfig &config, int value)
         {
+            Serial.println("Sending MIDI message for pin " + String(config.pin) +
+                           " value: " + String(value) +
+                           " type: " + String(static_cast<uint8_t>(config.midi_type)));
             if (!_onMIDISendRequest)
                 return;
 
@@ -413,7 +424,7 @@ namespace enomik
 
             case MidiStatus::MIDI_CONTROL_CHANGE:
                 msg.firstByte = config.midi_cc;
-                msg.secondByte = value & 0x7F;
+                msg.secondByte = value > 0 ? config.max_midi_value : config.min_midi_value;
                 break;
 
             case MidiStatus::MIDI_PITCH_BEND:
@@ -521,8 +532,7 @@ namespace enomik
             _preferences.clear(); // Erases all keys in the namespace
             _preferences.end();
 
-
-            if(_onResetRequest)
+            if (_onResetRequest)
             {
                 _onResetRequest();
             }
@@ -545,7 +555,7 @@ namespace enomik
 
             PinConfig cfg(d[0], d[1]);
             cfg.midi_channel = d[2];
-            cfg.midi_type = static_cast<MidiStatus>(d[3]);
+            cfg.midi_type = static_cast<MidiStatus>(d[3]*2);
             cfg.midi_cc = d[4];
             cfg.midi_note = d[4];
             cfg.min_midi_value = d[5];
