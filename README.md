@@ -86,5 +86,16 @@ if you are using a display then make sure you have set `HAS_DISPLAY 1` in config
 * examples/client_dac_i2s depends on mozzi
 * examples/client_dmx depends on SparkfunDMX 
 
-## contributing
+## Contributing
 If you find any bugs feel free to submit an issue on github, also PRs are very welcome.
+
+
+## License
+This library is licensed under the **GNU Lesser General Public License (LGPL) version 3**.
+
+* You are free to **use, modify, and distribute** this library, including in commercial products.
+* If you **modify the library itself** and distribute it, you must make those modifications available under the same LGPL license.
+* You **do not have to open-source your own code** that simply uses this library.
+
+For the full license text, see the `LICENSE` file included with this library or visit: [https://www.gnu.org/licenses/lgpl-3.0.html](https://www.gnu.org/licenses/lgpl-3.0.html).
+
