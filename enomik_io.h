@@ -14,7 +14,7 @@ namespace enomik
     // Pin mode constants for clarity
     static constexpr uint8_t ENOMIK_INPUT = 0x00;
     static constexpr uint8_t ENOMIK_OUTPUT = 0x01;
-    static constexpr uint8_t ENOMIK_INPUT_PULLUP = 0x02;//INPUT_PULLUP == 5
+    static constexpr uint8_t ENOMIK_INPUT_PULLUP = 0x02; // INPUT_PULLUP == 5
     static constexpr uint8_t ENOMIK_ANALOG_INPUT = 0x03;
     static constexpr uint8_t ENOMIK_ANALOG_OUTPUT = 0x04;
 
@@ -48,6 +48,7 @@ namespace enomik
         CLEAR_PIN_CONFIGS = 0x03,
         GET_ALL_PIN_CONFIGS = 0x04,
         DELETE_PIN_CONFIG = 0x05,
+        GET_MAC = 0x06,
         ADD_PEER = 0x07,
         GET_PEERS = 0x08,
         RESET = 0x09
@@ -342,6 +343,9 @@ namespace enomik
             case SysExCommand::RESET:
                 handleReset();
                 break;
+            case SysExCommand::GET_MAC:
+                handleGetMac();
+                break;
             case SysExCommand::SET_PIN_CONFIG:
                 handleSetPinConfig(data + offset, length - offset - 1);
                 break;
@@ -547,6 +551,37 @@ namespace enomik
             //     _onSysExSendRequest(resp, sizeof(resp));
             // }
         }
+        void handleGetMac()
+        {
+            if (!_onSysExSendRequest)
+                return;
+
+            uint8_t mac[6];
+            esp_read_mac(mac, ESP_MAC_WIFI_STA);  // Use ESP_MAC_WIFI_STA instead
+
+            midi_sysex_message msg;
+            msg.data[0] = 0xF0;                  // SysEx start
+            msg.data[1] = 0x7D;                  // Manufacturer ID (non-commercial)
+            // msg.data[2] = SysExCommand::GET_MAC; // Command
+            msg.data[2] = static_cast<uint8_t>(SysExCommand::GET_MAC);
+
+            int idx = 3;
+            for (int i = 0; i < 6; ++i)
+            {
+                uint8_t b = mac[i];
+                uint8_t hi = (b >> 4) & 0x0F;
+                uint8_t lo = b & 0x0F;
+
+                msg.data[idx++] = hi; // safe 7-bit value
+                msg.data[idx++] = lo; // safe 7-bit value
+            }
+
+            msg.data[idx++] = 0xF7;
+            msg.length = idx;
+
+            Serial.println("Sending MAC address via SysEx:");
+            _onSysExSendRequest(msg);
+        }
 
         void handleSetPinConfig(const uint8_t *d, uint16_t len)
         {
@@ -555,7 +590,7 @@ namespace enomik
 
             PinConfig cfg(d[0], d[1]);
             cfg.midi_channel = d[2];
-            cfg.midi_type = static_cast<MidiStatus>(d[3]*2);
+            cfg.midi_type = static_cast<MidiStatus>(d[3] * 2);
             cfg.midi_cc = d[4];
             cfg.midi_note = d[4];
             cfg.min_midi_value = d[5];

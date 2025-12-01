@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
+#include "esp_mac.h"
+
 
 #define MAC_ADDRESS_SIZE 6
 
