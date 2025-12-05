@@ -3,6 +3,21 @@
 #include "esp_now_midi.h"
 #include "utils/mac.h"
 
+// Detect ESP32 variant and set ADC resolution
+#if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32S3)
+#define ADC_RESOLUTION 13
+#define ADC_MAX_VALUE 8191
+#define TOUCH_MAX_VALUE 100 // Touch range for S2/S3
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+#define ADC_RESOLUTION 12
+#define ADC_MAX_VALUE 4095
+#define TOUCH_MAX_VALUE 100 // C3 doesn't have touch, but keeping for compatibility
+#else                       // Original ESP32
+#define ADC_RESOLUTION 12
+#define ADC_MAX_VALUE 4095
+#define TOUCH_MAX_VALUE 100
+#endif
+
 namespace enomik
 {
     enum class PinType : uint8_t
@@ -17,11 +32,13 @@ namespace enomik
     static constexpr uint8_t ENOMIK_INPUT_PULLUP = 0x02; // INPUT_PULLUP == 5
     static constexpr uint8_t ENOMIK_ANALOG_INPUT = 0x03;
     static constexpr uint8_t ENOMIK_ANALOG_OUTPUT = 0x04;
+    static constexpr uint8_t ENOMIK_INPUT_TOUCH = 0x05;
 
     struct PinConfig
     {
         uint8_t pin;
         uint8_t mode;
+        uint8_t threshold = 0;
         uint8_t midi_channel = 1;
         MidiStatus midi_type = MidiStatus::MIDI_CONTROL_CHANGE;
         uint8_t midi_cc = 0;
@@ -39,6 +56,7 @@ namespace enomik
         unsigned long lastChangeTime = 0;
         unsigned long lastSendTime = 0;
         float smoothedValue = 0;
+        bool touched = false;
     };
 
     enum class SysExCommand : uint8_t
@@ -51,7 +69,10 @@ namespace enomik
         GET_MAC = 0x06,
         ADD_PEER = 0x07,
         GET_PEERS = 0x08,
-        RESET = 0x09
+        RESET = 0x09,
+        GET_PIN_CONFIG_RESPONSE = 64 + GET_PIN_CONFIG,
+        GET_ALL_PIN_CONFIGS_RESPONSE = 64 + GET_ALL_PIN_CONFIGS,
+        GET_PEERS_RESPONSE = 64 + GET_PEERS
     };
 
     class IO
@@ -64,6 +85,7 @@ namespace enomik
 
         void begin()
         {
+            analogReadResolution(ADC_RESOLUTION);
             _pinConfigs = loadPinConfigsFromPrefs();
             _pinStates.clear();
 
@@ -112,18 +134,87 @@ namespace enomik
                         state.smoothedValue = (SMOOTHING_FACTOR * rawValue) +
                                               (1.0f - SMOOTHING_FACTOR) * state.smoothedValue;
 
-                    int mappedValue = map((int)state.smoothedValue, 0, 4095,
-                                          config.min_midi_value, config.max_midi_value);
-                    mappedValue = constrain(mappedValue, 0, 127);
-                    currentValue = mappedValue;
+                    // For pitch bend, preserve full ADC resolution
+                    if (config.midi_type == MidiStatus::MIDI_PITCH_BEND)
+                    {
+                        // Map directly to 14-bit pitch bend range (0-16383)
+                        currentValue = map((int)state.smoothedValue, 0, ADC_MAX_VALUE, 0, 16383);
+                        currentValue = constrain(currentValue, 0, 16383);
 
-                    if (state.lastValue != -1 && abs(currentValue - state.lastValue) < ANALOG_THRESHOLD)
-                        continue;
+                        // Use higher threshold for pitch bend since we have more resolution
+                        if (state.lastValue != -1 && abs(currentValue - state.lastValue) < (ANALOG_THRESHOLD * 4))
+                            continue;
+                    }
+                    else
+                    {
+                        // For other MIDI types, use standard 7-bit range
+                        int mappedValue = map((int)state.smoothedValue, 0, ADC_MAX_VALUE,
+                                              config.min_midi_value, config.max_midi_value);
+                        mappedValue = constrain(mappedValue, 0, 127);
+                        currentValue = mappedValue;
+
+                        if (state.lastValue != -1 && abs(currentValue - state.lastValue) < ANALOG_THRESHOLD)
+                            continue;
+                    }
 
                     if (now - state.lastSendTime < ANALOG_MIN_INTERVAL)
                         continue;
 
                     shouldSend = true;
+                }
+                else if (config.mode == ENOMIK_INPUT_TOUCH)
+                {
+                    int touchValue = touchRead(config.pin);
+
+                    if (config.threshold == 0)
+                    {
+                        // No threshold set, send scaled touch values with smoothing
+                        // Touch values typically range from ~10 (strong touch) to ~80+ (no touch)
+
+                        // Initialize smoothed value on first read
+                        if (state.lastValue == -1)
+                            state.smoothedValue = touchValue;
+                        else
+                            state.smoothedValue = (SMOOTHING_FACTOR * touchValue) +
+                                                  (1.0f - SMOOTHING_FACTOR) * state.smoothedValue;
+
+                        // Invert mapping: lower touch value (stronger touch) = higher MIDI value
+                        int mappedValue = map((int)state.smoothedValue, 0, 100, 127, 0);
+                        mappedValue = constrain(mappedValue, 0, 127);
+
+                        // Then apply user's min/max range
+                        currentValue = map(mappedValue, 0, 127,
+                                           config.min_midi_value, config.max_midi_value);
+                        currentValue = constrain(currentValue, config.min_midi_value, config.max_midi_value);
+
+                        if (state.lastValue != -1 && abs(currentValue - state.lastValue) < ANALOG_THRESHOLD)
+                            continue;
+
+                        if (now - state.lastSendTime < ANALOG_MIN_INTERVAL)
+                            continue;
+
+                        shouldSend = true;
+                    }
+                    else if (config.threshold > 0) // if threshold is set
+                    {
+                        // Lower values = stronger touch on ESP32
+                        bool isTouched = touchValue < config.threshold;
+
+                        if (isTouched != state.touched)
+                        {
+                            if (now - state.lastChangeTime < DEBOUNCE_MS)
+                                continue;
+
+                            state.lastChangeTime = now;
+                            state.touched = isTouched;
+                            currentValue = isTouched ? config.max_midi_value : config.min_midi_value;
+                            shouldSend = true;
+
+                            Serial.println("Touch " + String(config.pin) +
+                                           " value: " + String(touchValue) +
+                                           " touched: " + String(isTouched));
+                        }
+                    }
                 }
 
                 if (shouldSend)
@@ -265,7 +356,7 @@ namespace enomik
                     config.midi_channel == channel &&
                     config.midi_note == note)
                 {
-                    if (config.mode == OUTPUT)
+                    if (config.mode == ENOMIK_OUTPUT)
                     {
                         digitalWrite(config.pin, LOW);
                     }
@@ -404,6 +495,12 @@ namespace enomik
             {
                 pinMode(c.pin, INPUT_PULLUP);
             }
+            else if (c.mode == ENOMIK_INPUT_TOUCH)
+            {
+                // Touch pins: T0-T9 (GPIO 4, 0, 2, 15, 13, 12, 14, 27, 33, 32)
+                // Set a threshold - you may need to calibrate this
+                touchAttachInterrupt(c.pin, nullptr, 40); // 40 is a typical threshold
+            }
         }
 
         void sendMidiMessage(const PinConfig &config, int value)
@@ -428,7 +525,7 @@ namespace enomik
 
             case MidiStatus::MIDI_CONTROL_CHANGE:
                 msg.firstByte = config.midi_cc;
-                msg.secondByte = value > 0 ? config.max_midi_value : config.min_midi_value;
+                msg.secondByte = value > 0 ? config.min_midi_value : config.max_midi_value;
                 break;
 
             case MidiStatus::MIDI_PITCH_BEND:
@@ -497,6 +594,7 @@ namespace enomik
 
         void handleAddPeer(const uint8_t *d, uint16_t len)
         {
+            Serial.println("Handling Add Peer request...");
             if (len < 12) // Need 12 nibbles for 6 MAC bytes
                 return;
 
@@ -557,11 +655,11 @@ namespace enomik
                 return;
 
             uint8_t mac[6];
-            esp_read_mac(mac, ESP_MAC_WIFI_STA);  // Use ESP_MAC_WIFI_STA instead
+            esp_read_mac(mac, ESP_MAC_WIFI_STA); // Use ESP_MAC_WIFI_STA instead
 
             midi_sysex_message msg;
-            msg.data[0] = 0xF0;                  // SysEx start
-            msg.data[1] = 0x7D;                  // Manufacturer ID (non-commercial)
+            msg.data[0] = 0xF0; // SysEx start
+            msg.data[1] = 0x7D; // Manufacturer ID (non-commercial)
             // msg.data[2] = SysExCommand::GET_MAC; // Command
             msg.data[2] = static_cast<uint8_t>(SysExCommand::GET_MAC);
 
@@ -585,16 +683,17 @@ namespace enomik
 
         void handleSetPinConfig(const uint8_t *d, uint16_t len)
         {
-            if (len < 6)
+            if (len < 7)
                 return;
 
             PinConfig cfg(d[0], d[1]);
-            cfg.midi_channel = d[2];
-            cfg.midi_type = static_cast<MidiStatus>(d[3] * 2);
-            cfg.midi_cc = d[4];
-            cfg.midi_note = d[4];
-            cfg.min_midi_value = d[5];
-            cfg.max_midi_value = d[6];
+            cfg.threshold = d[2];
+            cfg.midi_channel = d[3];
+            cfg.midi_type = static_cast<MidiStatus>(d[4] * 2);
+            cfg.midi_cc = d[5];
+            cfg.midi_note = d[5];
+            cfg.min_midi_value = d[6];
+            cfg.max_midi_value = d[7];
 
             upsertPinConfig(cfg);
             sendGetPinConfigResponse(cfg);
@@ -681,11 +780,12 @@ namespace enomik
             uint8_t resp[] = {
                 0xF0,
                 0x7D,
-                static_cast<uint8_t>(SysExCommand::GET_PIN_CONFIG),
+                static_cast<uint8_t>(SysExCommand::GET_PIN_CONFIG_RESPONSE),
                 c.pin,
                 c.mode,
+                c.threshold,
                 c.midi_channel,
-                static_cast<uint8_t>(c.midi_type),
+                static_cast<uint8_t>(c.midi_type) / 2,
                 c.midi_type == MidiStatus::MIDI_CONTROL_CHANGE ? c.midi_cc : c.midi_note,
                 c.min_midi_value,
                 c.max_midi_value,

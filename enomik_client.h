@@ -304,7 +304,8 @@ namespace enomik
     midi_sysex_message msg;
     msg.data[0] = 0xF0;
     msg.data[1] = 0x7D; // Manufacturer ID (non-commercial)
-    auto index = 2;
+    msg.data[2] = static_cast<uint8_t>(SysExCommand::GET_PEERS_RESPONSE);
+    auto index = 3;
     
     for (int i = 0; i < this->peerStorage.count(); i++)
     {
@@ -322,8 +323,13 @@ namespace enomik
     
     msg.data[index] = 0xF7;
     msg.length = index + 1;
+    Serial.println("Sending peer list via SysEx");
+    Serial.println("Total peers: " + String(this->peerStorage.count()));
     
     this->sendSysEx(msg.data, msg.length); });
+
+
+
 
             io.setOnResetRequest([this]()
                                  {
