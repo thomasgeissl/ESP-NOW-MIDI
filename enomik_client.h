@@ -334,7 +334,10 @@ namespace enomik
             io.setOnResetRequest([this]()
                                  {
                                      this->peerStorage.clear();
-                                     //  ESP.restart();
+                                     esp_now_deinit();
+delay(10);
+esp_now_init();
+                                    //  esp_now_del_peer(nullptr);   // removes all
                                  });
 
 #ifdef HAS_USB_MIDI
