@@ -10,6 +10,9 @@
 # sudo apt install libstdc++6 libgcc-s1
 
 
+arduino-cli lib install "AceButton"
+arduino-cli lib install https://github.com/sparkfun/SparkFunDMX.git
+arduino-cli lib install https://github.com/sensorium/Mozzi.git
 
 
 BOARD="esp32:esp32:lolin_s2_mini"   # FQBN for ESP32-S2 Mini
