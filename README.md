@@ -49,7 +49,7 @@ Please note that ESP-NOW function signatures have changed in this version.
 
 if you are planning to send midi messages from your computer to your other esp32 micro controller, the dongle firmware will forward midi messages received via usb midi, the sender first needs to register its mac address by sending any midi message to the dongle via esp now midi.
 
-if you are using a display then make sure you have set `HAS_DISPLAY 1` in config.h 
+if you are using the dongle with a display then make sure you have set `HAS_DISPLAY 1` in config.h 
 
 ## sysex interface
 ### set pin config
