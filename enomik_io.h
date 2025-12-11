@@ -525,7 +525,7 @@ namespace enomik
 
             case MidiStatus::MIDI_CONTROL_CHANGE:
                 msg.firstByte = config.midi_cc;
-                msg.secondByte = value > 0 ? config.min_midi_value : config.max_midi_value;
+                msg.secondByte = value & 0x7F; 
                 break;
 
             case MidiStatus::MIDI_PITCH_BEND:
