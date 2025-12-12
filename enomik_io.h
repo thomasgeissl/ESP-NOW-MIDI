@@ -108,13 +108,6 @@ namespace enomik
         {
             for (auto &config : _pinConfigs)
             {
-                Serial.println(config.pin);
-                Serial.println(config.midi_channel);
-                Serial.println(channel);
-                Serial.println(config.midi_type);
-                Serial.println(MidiStatus::MIDI_NOTE_OFF);
-                Serial.println(config.midi_note);
-                Serial.println(note);
                 if ((
                         config.midi_type == MidiStatus::MIDI_NOTE_OFF ||
                         config.midi_type == MidiStatus::MIDI_NOTE_ON) &&
