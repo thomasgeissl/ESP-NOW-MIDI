@@ -83,21 +83,19 @@ namespace enomik
         // MIDI Input Handlers
         void onNoteOn(byte channel, byte note, byte velocity)
         {
-            Serial.println("Note On received in IO handler");
             for (auto &config : _pinConfigs)
             {
                 if (config.midi_type == MidiStatus::MIDI_NOTE_ON &&
                     config.midi_channel == channel &&
                     config.midi_note == note)
                 {
-                    Serial.println("Note On matched for pin " + String(config.pin));
+                    Serial.println(config.pin);
                     if (config.mode == ENOMIK_OUTPUT)
                     {
                         digitalWrite(config.pin, velocity > 0 ? HIGH : LOW);
                     }
                     else if (config.mode == ENOMIK_ANALOG_OUTPUT)
                     {
-                        Serial.println("Setting analog output for pin " + String(config.pin));
                         int mappedValue = map(velocity, config.min_midi_value, config.max_midi_value,
                                               0, ADC_MAX_VALUE);
                         analogWrite(config.pin, constrain(mappedValue, 0, ADC_MAX_VALUE));
@@ -110,7 +108,16 @@ namespace enomik
         {
             for (auto &config : _pinConfigs)
             {
-                if (config.midi_type == MidiStatus::MIDI_NOTE_OFF &&
+                Serial.println(config.pin);
+                Serial.println(config.midi_channel);
+                Serial.println(channel);
+                Serial.println(config.midi_type);
+                Serial.println(MidiStatus::MIDI_NOTE_OFF);
+                Serial.println(config.midi_note);
+                Serial.println(note);
+                if ((
+                        config.midi_type == MidiStatus::MIDI_NOTE_OFF ||
+                        config.midi_type == MidiStatus::MIDI_NOTE_ON) &&
                     config.midi_channel == channel &&
                     config.midi_note == note)
                 {
@@ -139,9 +146,8 @@ namespace enomik
                     }
                     else if (config.mode == ENOMIK_ANALOG_OUTPUT)
                     {
-                        int mappedValue = map(bend, 0, 16383,
-                                              config.min_midi_value, config.max_midi_value);
-                        analogWrite(config.pin, constrain(mappedValue, 0, 255));
+                        int mappedValue = map(bend, 0, 16383, 0, ADC_MAX_VALUE);
+                        analogWrite(config.pin, constrain(mappedValue, 0, ADC_MAX_VALUE));
                     }
                 }
             }
@@ -161,8 +167,7 @@ namespace enomik
                     }
                     else if (config.mode == ENOMIK_ANALOG_OUTPUT)
                     {
-                        int mappedValue = map(value, config.min_midi_value, config.max_midi_value,
-                                              0, ADC_MAX_VALUE);
+                        int mappedValue = map(value, config.min_midi_value, config.max_midi_value, 0, ADC_MAX_VALUE);
                         analogWrite(config.pin, constrain(mappedValue, 0, ADC_MAX_VALUE));
                     }
                 }
