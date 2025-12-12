@@ -1,6 +1,7 @@
+#pragma once
 #define ESP_NOW_MIDI_VERSION_MAJOR 0
-#define ESP_NOW_MIDI_VERSION_MINOR 7
-#define ESP_NOW_MIDI_VERSION_PATCH 1
+#define ESP_NOW_MIDI_VERSION_MINOR 8
+#define ESP_NOW_MIDI_VERSION_PATCH 0
 
 inline String getVersion() {
     return String(ESP_NOW_MIDI_VERSION_MAJOR) + "." + 

@@ -1,6 +1,12 @@
 #include "./enomik_pinconfig.h"
+#include "./version.h"
+
 namespace enomik
 {
+    // Protocol version - uses library version for compatibility
+    static constexpr uint8_t PROTOCOL_VERSION_MAJOR = ESP_NOW_MIDI_VERSION_MAJOR;
+    static constexpr uint8_t PROTOCOL_VERSION_MINOR = ESP_NOW_MIDI_VERSION_MINOR;
+
     enum class SysExCommand : uint8_t
     {
         SET_PIN_CONFIG = 0x01,
@@ -12,19 +18,22 @@ namespace enomik
         ADD_PEER = 0x07,
         GET_PEERS = 0x08,
         RESET = 0x09,
+        GET_VERSION = 0x0A,
 
         // Response codes (command + 64)
         GET_PIN_CONFIG_RESPONSE = 0x42,      // 66
         GET_ALL_PIN_CONFIGS_RESPONSE = 0x44, // 68
-        GET_PEERS_RESPONSE = 0x48            // 72
+        GET_PEERS_RESPONSE = 0x48,           // 72
+        GET_VERSION_RESPONSE = 0x4A          // 74
     };
+
     struct SysExPacket
     {
         static constexpr uint8_t START_BYTE = 0xF0;
         static constexpr uint8_t END_BYTE = 0xF7;
         static constexpr uint8_t MANUFACTURER_ID = 0x7D;
-        static constexpr size_t HEADER_SIZE = 3;     // START + MANUF_ID + COMMAND
-        static constexpr size_t MIN_PACKET_SIZE = 4; // HEADER + END
+        static constexpr size_t HEADER_SIZE = 5;     // START + MANUF_ID + MAJOR + MINOR + COMMAND
+        static constexpr size_t MIN_PACKET_SIZE = 6; // HEADER + END
         static constexpr size_t MAX_DATA_SIZE = 256;
 
         uint8_t data[MAX_DATA_SIZE];
@@ -40,9 +49,25 @@ namespace enomik
                    data[length - 1] == END_BYTE;
         }
 
+        uint8_t getMajorVersion() const
+        {
+            return length >= 3 ? data[2] : 0;
+        }
+
+        uint8_t getMinorVersion() const
+        {
+            return length >= 4 ? data[3] : 0;
+        }
+
+        bool isVersionCompatible() const
+        {
+            // Same major version = compatible
+            return getMajorVersion() == PROTOCOL_VERSION_MAJOR;
+        }
+
         SysExCommand getCommand() const
         {
-            return length >= HEADER_SIZE ? static_cast<SysExCommand>(data[2]) : SysExCommand::GET_MAC;
+            return length >= HEADER_SIZE ? static_cast<SysExCommand>(data[4]) : SysExCommand::GET_VERSION;
         }
 
         const uint8_t *getPayload() const
@@ -56,6 +81,7 @@ namespace enomik
             return (length > MIN_PACKET_SIZE) ? (length - MIN_PACKET_SIZE) : 0;
         }
     };
+
     class SysExEncoder
     {
     public:
@@ -65,9 +91,11 @@ namespace enomik
             SysExPacket pkt;
             pkt.data[0] = SysExPacket::START_BYTE;
             pkt.data[1] = SysExPacket::MANUFACTURER_ID;
-            pkt.data[2] = static_cast<uint8_t>(cmd);
-            pkt.data[3] = SysExPacket::END_BYTE;
-            pkt.length = 4;
+            pkt.data[2] = PROTOCOL_VERSION_MAJOR;
+            pkt.data[3] = PROTOCOL_VERSION_MINOR;
+            pkt.data[4] = static_cast<uint8_t>(cmd);
+            pkt.data[5] = SysExPacket::END_BYTE;
+            pkt.length = 6;
             return pkt;
         }
 
@@ -77,10 +105,28 @@ namespace enomik
             SysExPacket pkt;
             pkt.data[0] = SysExPacket::START_BYTE;
             pkt.data[1] = SysExPacket::MANUFACTURER_ID;
-            pkt.data[2] = static_cast<uint8_t>(cmd);
-            pkt.data[3] = byte;
-            pkt.data[4] = SysExPacket::END_BYTE;
-            pkt.length = 5;
+            pkt.data[2] = PROTOCOL_VERSION_MAJOR;
+            pkt.data[3] = PROTOCOL_VERSION_MINOR;
+            pkt.data[4] = static_cast<uint8_t>(cmd);
+            pkt.data[5] = byte;
+            pkt.data[6] = SysExPacket::END_BYTE;
+            pkt.length = 7;
+            return pkt;
+        }
+
+        // Encode version response
+        static SysExPacket encodeVersion()
+        {
+            SysExPacket pkt;
+            pkt.data[0] = SysExPacket::START_BYTE;
+            pkt.data[1] = SysExPacket::MANUFACTURER_ID;
+            pkt.data[2] = PROTOCOL_VERSION_MAJOR;
+            pkt.data[3] = PROTOCOL_VERSION_MINOR;
+            pkt.data[4] = static_cast<uint8_t>(SysExCommand::GET_VERSION_RESPONSE);
+            pkt.data[5] = PROTOCOL_VERSION_MAJOR;
+            pkt.data[6] = PROTOCOL_VERSION_MINOR;
+            pkt.data[7] = SysExPacket::END_BYTE;
+            pkt.length = 8;
             return pkt;
         }
 
@@ -89,17 +135,19 @@ namespace enomik
             SysExPacket pkt;
             pkt.data[0] = SysExPacket::START_BYTE;
             pkt.data[1] = SysExPacket::MANUFACTURER_ID;
-            pkt.data[2] = static_cast<uint8_t>(SysExCommand::GET_PIN_CONFIG_RESPONSE);
-            pkt.data[3] = cfg.pin;
-            pkt.data[4] = cfg.mode;
-            pkt.data[5] = cfg.threshold;
-            pkt.data[6] = cfg.midi_channel;
-            pkt.data[7] = static_cast<uint8_t>(cfg.midi_type) / 2;
-            pkt.data[8] = (cfg.midi_type == MidiStatus::MIDI_CONTROL_CHANGE) ? cfg.midi_cc : cfg.midi_note;
-            pkt.data[9] = cfg.min_midi_value;
-            pkt.data[10] = cfg.max_midi_value;
-            pkt.data[11] = SysExPacket::END_BYTE;
-            pkt.length = 12;
+            pkt.data[2] = PROTOCOL_VERSION_MAJOR;
+            pkt.data[3] = PROTOCOL_VERSION_MINOR;
+            pkt.data[4] = static_cast<uint8_t>(SysExCommand::GET_PIN_CONFIG_RESPONSE);
+            pkt.data[5] = cfg.pin;
+            pkt.data[6] = cfg.mode;
+            pkt.data[7] = cfg.threshold;
+            pkt.data[8] = cfg.midi_channel;
+            pkt.data[9] = static_cast<uint8_t>(cfg.midi_type) / 2;
+            pkt.data[10] = (cfg.midi_type == MidiStatus::MIDI_CONTROL_CHANGE) ? cfg.midi_cc : cfg.midi_note;
+            pkt.data[11] = cfg.min_midi_value;
+            pkt.data[12] = cfg.max_midi_value;
+            pkt.data[13] = SysExPacket::END_BYTE;
+            pkt.length = 14;
             return pkt;
         }
 
@@ -109,9 +157,11 @@ namespace enomik
             SysExPacket pkt;
             pkt.data[0] = SysExPacket::START_BYTE;
             pkt.data[1] = SysExPacket::MANUFACTURER_ID;
-            pkt.data[2] = static_cast<uint8_t>(SysExCommand::GET_MAC);
+            pkt.data[2] = PROTOCOL_VERSION_MAJOR;
+            pkt.data[3] = PROTOCOL_VERSION_MINOR;
+            pkt.data[4] = static_cast<uint8_t>(SysExCommand::GET_MAC);
 
-            int idx = 3;
+            int idx = 5;
             for (int i = 0; i < 6; i++)
             {
                 uint8_t hi = (mac[i] >> 4) & 0x0F;
@@ -124,6 +174,7 @@ namespace enomik
             pkt.length = idx;
             return pkt;
         }
+
         // Convert SysExPacket to midi_sysex_message
         static midi_sysex_message toMidiMessage(const SysExPacket &pkt)
         {
@@ -133,6 +184,7 @@ namespace enomik
             return msg;
         }
     };
+
     class SysExDecoder
     {
     public:
@@ -157,7 +209,6 @@ namespace enomik
             if (length < 8)
                 return false;
 
-            
             Serial.println("Decoding PinConfig from SysEx payload");
             Serial.println(payload[3]);
             Serial.println(payload[4]);
@@ -207,6 +258,7 @@ namespace enomik
         void setOnAddPeer(MACCallback cb) { _onAddPeer = cb; }
         void setOnGetPeers(VoidCallback cb) { _onGetPeers = cb; }
         void setOnReset(VoidCallback cb) { _onReset = cb; }
+        void setOnGetVersion(VoidCallback cb) { _onGetVersion = cb; }
         void setOnSend(SendCallback cb) { _onSend = cb; }
 
         // Main entry point for handling incoming SysEx messages
@@ -227,6 +279,20 @@ namespace enomik
             if (!packet.isValid())
             {
                 Serial.println("SysEx: Invalid packet format");
+                return;
+            }
+
+            // Check version compatibility
+            if (!packet.isVersionCompatible())
+            {
+                Serial.print("SysEx: Incompatible protocol version ");
+                Serial.print(packet.getMajorVersion());
+                Serial.print(".");
+                Serial.print(packet.getMinorVersion());
+                Serial.print(" (expected ");
+                Serial.print(PROTOCOL_VERSION_MAJOR);
+                Serial.print(".x)");
+                Serial.println();
                 return;
             }
 
@@ -251,6 +317,16 @@ namespace enomik
                 return;
 
             SysExPacket pkt = SysExEncoder::encodeMAC(mac);
+            midi_sysex_message msg = SysExEncoder::toMidiMessage(pkt);
+            _onSend(msg);
+        }
+
+        void sendVersionResponse()
+        {
+            if (!_onSend)
+                return;
+
+            SysExPacket pkt = SysExEncoder::encodeVersion();
             midi_sysex_message msg = SysExEncoder::toMidiMessage(pkt);
             _onSend(msg);
         }
@@ -286,6 +362,7 @@ namespace enomik
         MACCallback _onAddPeer;
         VoidCallback _onGetPeers;
         VoidCallback _onReset;
+        VoidCallback _onGetVersion;
         SendCallback _onSend;
 
         void routeCommand(const SysExPacket &packet)
@@ -333,6 +410,10 @@ namespace enomik
 
             case SysExCommand::RESET:
                 handleReset();
+                break;
+
+            case SysExCommand::GET_VERSION:
+                handleGetVersion();
                 break;
 
             default:
@@ -474,6 +555,15 @@ namespace enomik
             {
                 Serial.println("SysEx: Performing reset");
                 _onReset();
+            }
+        }
+
+        void handleGetVersion()
+        {
+            if (_onGetVersion)
+            {
+                Serial.println("SysEx: Getting version");
+                _onGetVersion();
             }
         }
     };
