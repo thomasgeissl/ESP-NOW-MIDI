@@ -157,6 +157,14 @@ namespace enomik
             if (length < 8)
                 return false;
 
+            
+            Serial.println("Decoding PinConfig from SysEx payload");
+            Serial.println(payload[3]);
+            Serial.println(payload[4]);
+            Serial.println(payload[5]);
+            Serial.println(payload[6]);
+            Serial.println(payload[7]);
+
             cfg.pin = payload[0];
             cfg.mode = payload[1];
             cfg.threshold = payload[2];
