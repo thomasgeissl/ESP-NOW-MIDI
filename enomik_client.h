@@ -1,3 +1,4 @@
+#include "./config.h"
 #include "esp_now_midi.h"
 #include <esp_now.h>
 #include <WiFi.h>
@@ -60,19 +61,19 @@ namespace enomik
         void onSystemExclusive(uint8_t *data, unsigned int length)
         {
             io.onSysEx(data, length);
-            // TODO: implement eonomik sysex and then call client handler if set
+            if(_onSysExHandler){
+                _onSysExHandler(data, length);
+            }
         }
 
         // --- Static handlers that call both IO and user-defined callbacks ---
         static void handleNoteOnStatic(byte channel, byte note, byte velocity)
         {
-            Serial.println("handleNoteOnStatic");
             if (Client::instancePtr)
             {
                 Client::instancePtr->io.onNoteOn(channel, note, velocity);
                 if (Client::instancePtr->_onNoteOnHandler)
                 {
-                    Serial.println("calling user onNoteOnHandler");
                     Client::instancePtr->_onNoteOnHandler(channel, note, velocity);
                 }
             }
@@ -434,6 +435,8 @@ esp_now_init();
         bool sendNoteOn(byte note, byte velocity, byte channel)
         {
             auto err = espnowMIDI.sendNoteOn(note, velocity, channel);
+            Serial.println(espnowMIDI.getPeersCount());
+            espnowMIDI.printPeers();
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())
             {

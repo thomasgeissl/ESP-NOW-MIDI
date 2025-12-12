@@ -1,0 +1,1 @@
+#define ENOMIK_DEBUG 1

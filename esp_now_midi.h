@@ -141,6 +141,30 @@ public:
     return true;
   }
 
+  int getPeersCount() const
+  {
+    return _peersCount;
+  }
+
+  void printPeers() const
+  {
+    Serial.println("=== Registered ESP-NOW Peers ===");
+    for (int i = 0; i < _peersCount; i++)
+    {
+      Serial.print("Peer ");
+      Serial.print(i);
+      Serial.print(": ");
+      for (int j = 0; j < 6; j++)
+      {
+        Serial.print(_peers[i][j], HEX);
+        if (j < 5)
+          Serial.print(":");
+      }
+      Serial.println();
+    }
+    Serial.println("================================");
+  }
+
   // Send to all peers
   esp_err_t sendToAllPeers(const uint8_t *data, size_t len)
   {
@@ -154,6 +178,17 @@ public:
 
     for (int i = 0; i < _peersCount; i++)
     {
+      Serial.print("Sending to peer ");
+      Serial.print(i);
+      Serial.print(": ");
+      for (int j = 0; j < 6; j++)
+      {
+        Serial.print(_peers[i][j], HEX);
+        if (j < 5)
+          Serial.print(":");
+      }
+      Serial.println();
+
       esp_err_t err = esp_now_send(_peers[i], data, len);
       if (err != ESP_OK)
       {
@@ -305,6 +340,7 @@ public:
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
+    Serial.print("Received data from: ");
     if (len > sizeof(midi_message))
     {
       midi_sysex_message sysexMessage;
