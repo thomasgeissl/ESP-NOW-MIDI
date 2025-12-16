@@ -46,10 +46,10 @@ void handleEvent(AceButton *button, uint8_t eventType, uint8_t buttonState) {
   uint8_t id = button->getId();
   switch (eventType) {
     case AceButton::kEventPressed:
-      _client.midi.sendNoteOn(MIDI_NOTE + id, 127, 1);
+      _client.sendNoteOn(MIDI_NOTE + id, 127, 1);
       break;
     case AceButton::kEventReleased:
-      _client.midi.sendNoteOff(MIDI_NOTE + id, 0, 1);
+      _client.sendNoteOff(MIDI_NOTE + id, 0, 1);
       break;
   }
 }
