@@ -1,5 +1,4 @@
 name: Build ESP32-S2 Mini Sketches
-
 on:
   push:
     branches: 
@@ -9,7 +8,6 @@ on:
     branches: 
       - main
       - feature/enomik
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -56,9 +54,27 @@ jobs:
             fi
           done
           
-      - name: Upload binaries
+      - name: Organize binaries for web embedding
+        run: |
+          mkdir -p binaries
+          for sketch_dir in build/*/; do
+            if [ -d "$sketch_dir" ]; then
+              sketch_name=$(basename "$sketch_dir")
+              for bin_file in "$sketch_dir"/*.bin; do
+                if [ -f "$bin_file" ]; then
+                  bin_basename=$(basename "$bin_file")
+                  # Copy with descriptive name: sketchname_filename.bin
+                  cp "$bin_file" "binaries/${sketch_name}_${bin_basename}"
+                fi
+              done
+            fi
+          done
+          
+      - name: Upload individual binary files
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: esp32s2-bin-files
-          path: build/
+          name: esp32s2-binaries
+          path: binaries/*.bin
+          # This will upload all .bin files individually (not zipped)
+          # They can be accessed via GitHub Actions artifacts API
