@@ -12,6 +12,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
+    strategy:
+      matrix:
+        board:
+          - fqbn: "esp32:esp32:lolin_s2_mini"
+            name: "lolin_s2_mini"
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,28 +50,29 @@ jobs:
           arduino-cli lib install "SparkFun DMX Shield Library"
           arduino-cli lib install "AceButton"
           
-      - name: Compile all examples
+      - name: Compile all examples for ${{ matrix.board.name }}
         run: |
           mkdir -p build
           for sketch in examples/*/; do
             if [ -d "$sketch" ]; then
               sketch_name=$(basename "$sketch")
-              echo "Building $sketch_name"
-              arduino-cli compile --fqbn esp32:esp32:esp32s2 "$sketch" --output-dir build/"$sketch_name" || echo "Failed to build $sketch_name"
+              echo "Building $sketch_name for ${{ matrix.board.name }}"
+              arduino-cli compile --fqbn ${{ matrix.board.fqbn }} "$sketch" --output-dir build/"$sketch_name" || echo "Failed to build $sketch_name for ${{ matrix.board.name }}"
             fi
           done
           
       - name: Organize binaries for web embedding
         run: |
           mkdir -p binaries
+          BOARD_NAME="${{ matrix.board.name }}"
           for sketch_dir in build/*/; do
             if [ -d "$sketch_dir" ]; then
               sketch_name=$(basename "$sketch_dir")
               for bin_file in "$sketch_dir"/*.bin; do
                 if [ -f "$bin_file" ]; then
                   bin_basename=$(basename "$bin_file")
-                  # Copy with descriptive name: sketchname_filename.bin
-                  cp "$bin_file" "binaries/${sketch_name}_${bin_basename}"
+                  # Copy with board name prefix: boardname_sketchname_filename.bin
+                  cp "$bin_file" "binaries/${BOARD_NAME}_${sketch_name}_${bin_basename}"
                 fi
               done
             fi
@@ -75,7 +82,5 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: esp32s2-binaries
+          name: esp32s2-binaries-${{ matrix.board.name }}
           path: binaries/*.bin
-          # This will upload all .bin files individually (not zipped)
-          # They can be accessed via GitHub Actions artifacts API
