@@ -51,6 +51,13 @@ if you are planning to send midi messages from your computer to your other esp32
 
 if you are using the dongle with a display then make sure you have set `HAS_DISPLAY 1` in config.h 
 
+### enomik 3000 (WIP)
+This library is fully integrated in the [ESP-NOW MIDI Kit](https://grantler-instruments.github.io/enomik-app/) - the no-code app for creating (wireless) MIDI devices.
+
+### Circuit Python (WIP)
+A circuit python version is in the making as well. Contributions here are very welcome.
+
+
 ## sysex interface
 ### set pin config
 1. start: 0xF0
