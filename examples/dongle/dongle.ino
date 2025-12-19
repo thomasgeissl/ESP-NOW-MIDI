@@ -109,6 +109,42 @@ void onSongPosition(unsigned int value);
 esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message);
 void send(midi_message message);
 
+bool addPeer(const uint8_t mac[6]) {
+  // Bounds check
+  if (peerCount >= DONGLE_MAX_PEERS) {
+    Serial.println("addPeer: peer table full");
+    return false;
+  }
+
+  // Deduplication
+  for (int i = 0; i < peerCount; i++) {
+    if (memcmp(peerMacAddresses[i], mac, 6) == 0) {
+      return true;  // already known
+    }
+  }
+
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, mac, 6);
+  peerInfo.channel = 0;  // current Wi-Fi channel
+  peerInfo.encrypt = false;
+  peerInfo.ifidx = WIFI_IF_STA;
+
+  esp_err_t err = esp_now_add_peer(&peerInfo);
+  if (err != ESP_OK) {
+    Serial.printf("addPeer failed: %d\n", err);
+    return false;
+  }
+
+  memcpy(peerMacAddresses[peerCount], mac, 6);
+  peerCount++;
+
+  Serial.print("Peer registered: ");
+  printMacAddress(mac);
+
+  return true;
+}
+
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -127,8 +163,8 @@ void setup() {
   esp_now_register_send_cb(DefaultOnDataSent);
 
   // HERE YOU COULD MANUALLY ENTER THE MAC ADDRESS OF THE RECEIVER
-  // uint8_t broadcastAddress[6] = { 0xCC, 0x8D, 0xA2, 0x8B, 0x85, 0x1C };
-  // addMacAddress(broadcastAddress);
+  uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+  addPeer(peerMacAddress);
 
   // Init MIDI
   MIDI.begin(MIDI_CHANNEL_OMNI);
@@ -340,7 +376,15 @@ void onDataRecv(const esp_now_recv_info_t *messageInfo, const uint8_t *incomingD
     peerCount++;
   }
 
-  memcpy(&message, incomingData, sizeof(message));
+  if (len == sizeof(midi_message_packet)) {
+    // Receive as packet, convert to message
+    midi_message_packet packet;
+    memcpy(&packet, incomingData, sizeof(packet));
+    message = packet.toMessage();  // Convert 0-based channel to 1-based
+  } else {
+    // Fallback for old 4-byte format (backward compatibility)
+    memcpy(&message, incomingData, sizeof(message));
+  }
   addToHistory(message);
 
   auto status = message.status;

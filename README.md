@@ -35,9 +35,9 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
       * MIDI Ch 1, NOTE 0, VEL: 127 -> DMX Channel 1, value: 127*2
       * MIDI Ch 4, NOTE 127, VEL: 127 -> DMX Channel 512, value: 127*2
 
-## breaking changes
-ESP32 Boards version 3.3.0 require library version 0.6.0 or higher for compatibility.
-Please note that ESP-NOW function signatures have changed in this version.
+## breaking changes (this library is under active development => please use make sure you are using the latest version)
+* Starting with version 0.9.0, packages are sent as 3 byte messages (channel+status combined, as the MIDI specs), older version have used 4 bytes
+* Starting with version 0.6, this library requires ESP32 board version greater or equal than 3.3.0 
 
 
 ## usage

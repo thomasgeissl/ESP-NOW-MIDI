@@ -2,7 +2,7 @@
 #include <SparkFunDMX.h>  //https://github.com/sparkfun/SparkFunDMX/
 
 // on the dongle: run the print_mac firmware and paste it here
-uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF0, 0x80, 0x14 };
 enomik::Client _client;
 
 SparkFunDMX dmx;
@@ -40,6 +40,7 @@ void customOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 
 void onNoteOn(byte channel, byte note, byte velocity) {
   // Use first 4 MIDI channels for note control
+  Serial.println("note on");
   if (channel >= 1 && channel <= 4) {
     int dmxChannel = channel;         // MIDI channel 1-4 maps to DMX channel 1-4
     uint8_t dmxValue = velocity * 2;  // Scale 0-127 to 0-254
