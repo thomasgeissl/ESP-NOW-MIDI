@@ -1,6 +1,5 @@
 #pragma once
 #include <Arduino.h>
-
 // MIDI status bytes
 enum MidiStatus {
 	MIDI_UNKNOWN            = 0x00,
@@ -18,7 +17,7 @@ enum MidiStatus {
 	MIDI_SONG_POS_POINTER   = 0xF2,
 	MIDI_SONG_SELECT        = 0xF3,
 	MIDI_TUNE_REQUEST       = 0xF6,
-	SYSEX_END          = 0xF7,
+	SYSEX_END               = 0xF7,
 	MIDI_TIME_CLOCK         = 0xF8,
 	MIDI_START              = 0xFA,
 	MIDI_CONTINUE           = 0xFB,
@@ -26,17 +25,15 @@ enum MidiStatus {
 	MIDI_ACTIVE_SENSING     = 0xFE,
 	MIDI_SYSTEM_RESET       = 0xFF
 };
-
 #define MIDI_MIN_BEND       0
 #define MIDI_MAX_BEND       16383
-
 // Original struct for internal use (1-based channels, separate fields)
 struct midi_message {
     byte channel;       // 1-16 (user-facing)
     MidiStatus status;
     byte firstByte;
     byte secondByte;
-};
+} __attribute__((packed));
 
 // 3-byte packet for transmission (follows MIDI spec exactly)
 struct midi_message_packet {
@@ -119,9 +116,9 @@ struct midi_message_packet {
                 return 3; // status + 2 data bytes
         }
     }
-};
+} __attribute__((packed));
 
 struct midi_sysex_message {
 	byte data[128];
 	byte length;
-};
+} __attribute__((packed));

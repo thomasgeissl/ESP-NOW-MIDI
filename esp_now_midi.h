@@ -1,9 +1,13 @@
 #pragma once
 #define MAX_PEERS 20
+#ifndef ESP_NOW_MIDI_CHANNEL
+#define ESP_NOW_MIDI_CHANNEL 6
+#endif
 #include "./version.h"
 #include <esp_now.h>
 #include <esp_wifi.h> // Needed for wifi_tx_info_t in newer versions
 #include "./midiHelpers.h"
+#define ESP_NOW_DEBUGGING 0
 
 // Version detection
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
@@ -24,15 +28,18 @@ public:
 #ifdef ESP_NOW_NEW_CALLBACK_SIGNATURE
   static void DefaultOnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status)
   {
+#if ESP_NOW_DEBUGGING == 1
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-    // Note: MAC address not directly available in wifi_tx_info_t structure
+#endif
   }
 #else
   static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
   {
+#if ESP_NOW_DEBUGGING == 1
     Serial.print("\r\nLast Packet Send Status:\t");
     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+#endif
   }
 #endif
 
@@ -77,6 +84,10 @@ public:
   void setup(DataSentCallback callback = DefaultOnDataSent)
   {
     _instance = this;
+    esp_wifi_set_channel(ESP_NOW_MIDI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_set_max_tx_power(84);
+
     userDataSentCallback = callback;
 
     // Initialize peers array
@@ -123,7 +134,7 @@ public:
     esp_now_peer_info_t peerInfo;
     memset(&peerInfo, 0, sizeof(peerInfo));
     memcpy(peerInfo.peer_addr, macAddress, 6); // Always use exact size (6 bytes)
-    peerInfo.channel = 0;
+    peerInfo.channel = ESP_NOW_MIDI_CHANNEL;
     peerInfo.encrypt = false;
 
     // Add the peer to ESP-NOW
@@ -178,17 +189,6 @@ public:
 
     for (int i = 0; i < _peersCount; i++)
     {
-      Serial.print("Sending to peer ");
-      Serial.print(i);
-      Serial.print(": ");
-      for (int j = 0; j < 6; j++)
-      {
-        Serial.print(_peers[i][j], HEX);
-        if (j < 5)
-          Serial.print(":");
-      }
-      Serial.println();
-
       esp_err_t err = esp_now_send(_peers[i], data, len);
       if (err != ESP_OK)
       {
@@ -198,84 +198,84 @@ public:
     return result;
   }
 
-  esp_err_t sendNoteOn(byte note, byte velocity, byte channel)
+  inline esp_err_t sendNoteOn(byte note, byte velocity, byte channel)
   {
     midi_message message;
     message.channel = channel;
     message.status = MIDI_NOTE_ON;
     message.firstByte = note;
     message.secondByte = velocity;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendNoteOff(byte note, byte velocity, byte channel)
+  inline esp_err_t sendNoteOff(byte note, byte velocity, byte channel)
   {
     midi_message message;
     message.channel = channel;
     message.status = MIDI_NOTE_OFF;
     message.firstByte = note;
     message.secondByte = velocity;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendControlChange(byte control, byte value, byte channel)
+  inline esp_err_t sendControlChange(byte control, byte value, byte channel)
   {
     midi_message message;
     message.channel = channel;
     message.status = MIDI_CONTROL_CHANGE;
     message.firstByte = control;
     message.secondByte = value;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendProgramChange(byte program, byte channel)
+  inline esp_err_t sendProgramChange(byte program, byte channel)
   {
     midi_message message;
     message.channel = channel;
     message.status = MIDI_PROGRAM_CHANGE;
     message.firstByte = program;
     message.secondByte = 0;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendAfterTouch(byte pressure, byte channel)
+  inline esp_err_t sendAfterTouch(byte pressure, byte channel)
   {
     midi_message message;
     message.channel = channel;
     message.status = MIDI_AFTERTOUCH;
     message.firstByte = pressure;
     message.secondByte = 0;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendAfterTouch(byte note, byte pressure, byte channel)
+  inline esp_err_t sendAfterTouch(byte note, byte pressure, byte channel)
   {
     midi_message message;
     message.channel = channel;
     message.status = MIDI_POLY_AFTERTOUCH;
     message.firstByte = note;
     message.secondByte = pressure;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendAfterTouchPoly(byte note, byte pressure, byte channel)
+  inline esp_err_t sendAfterTouchPoly(byte note, byte pressure, byte channel)
   {
     return sendAfterTouch(note, pressure, channel);
   }
 
-  esp_err_t sendPitchBendRaw(int value, byte channel)
+  inline esp_err_t sendPitchBendRaw(int value, byte channel)
   {
     midi_message message;
     message.channel = channel;
@@ -283,12 +283,12 @@ public:
     value = value & 0x3FFF;
     message.firstByte = value & 0x7F;
     message.secondByte = (value >> 7) & 0x7F;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendPitchBend(int16_t value, byte channel)
+  inline esp_err_t sendPitchBend(int16_t value, byte channel)
   {
     // clamp to signed 14-bit range
     if (value < -8192)
@@ -301,55 +301,55 @@ public:
     return sendPitchBendRaw(raw, channel);
   }
 
-  esp_err_t sendStart()
+  inline esp_err_t sendStart()
   {
     midi_message message;
-    message.channel = 0;  // System messages don't use channel
+    message.channel = 0; // System messages don't use channel
     message.status = MIDI_START;
     message.firstByte = 0;
     message.secondByte = 0;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendStop()
+  inline esp_err_t sendStop()
   {
     midi_message message;
     message.channel = 0;
     message.status = MIDI_STOP;
     message.firstByte = 0;
     message.secondByte = 0;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendContinue()
+  inline esp_err_t sendContinue()
   {
     midi_message message;
     message.channel = 0;
     message.status = MIDI_CONTINUE;
     message.firstByte = 0;
     message.secondByte = 0;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendClock()
+  inline esp_err_t sendClock()
   {
     midi_message message;
     message.channel = 0;
     message.status = MIDI_TIME_CLOCK;
     message.firstByte = 0;
     message.secondByte = 0;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendSongPosition(uint16_t value)
+  inline esp_err_t sendSongPosition(uint16_t value)
   {
     midi_message message;
     message.channel = 0;
@@ -357,12 +357,12 @@ public:
     value = value & 0x3FFF;
     message.firstByte = value & 0x7F;
     message.secondByte = (value >> 7) & 0x7F;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendSongSelect(uint8_t value)
+  inline esp_err_t sendSongSelect(uint8_t value)
   {
     midi_message message;
     message.channel = 0;
@@ -370,12 +370,60 @@ public:
     value = value & 0x7F;
     message.firstByte = value;
     message.secondByte = 0;
-    
+
     midi_message_packet packet = midi_message_packet::fromMessage(message);
-    return sendToAllPeers((uint8_t *)&packet, sizeof(packet));
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
   }
 
-  esp_err_t sendSysex(uint8_t data[128], uint8_t length)
+  inline esp_err_t sendTuneRequest()
+  {
+    midi_message message;
+    message.channel = 0;
+    message.status = MIDI_TUNE_REQUEST;
+    message.firstByte = 0;
+    message.secondByte = 0;
+
+    midi_message_packet packet = midi_message_packet::fromMessage(message);
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
+  }
+
+  inline esp_err_t sendTimeCode(uint8_t value)
+  {
+    midi_message message;
+    message.channel = 0;
+    message.status = MIDI_TIME_CODE;
+    value = value & 0x7F;
+    message.firstByte = value;
+    message.secondByte = 0;
+
+    midi_message_packet packet = midi_message_packet::fromMessage(message);
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
+  }
+
+  inline esp_err_t sendActiveSensing()
+  {
+    midi_message message;
+    message.channel = 0;
+    message.status = MIDI_ACTIVE_SENSING;
+    message.firstByte = 0;
+    message.secondByte = 0;
+
+    midi_message_packet packet = midi_message_packet::fromMessage(message);
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
+  }
+  inline esp_err_t sendSystemReset()
+  {
+    midi_message message;
+    message.channel = 0;
+    message.status = MIDI_SYSTEM_RESET;
+    message.firstByte = 0;
+    message.secondByte = 0;
+
+    midi_message_packet packet = midi_message_packet::fromMessage(message);
+    return sendToAllPeers((uint8_t *)&packet, packet.getDataSize());
+  }
+
+  inline esp_err_t sendSysex(uint8_t data[128], uint8_t length)
   {
     midi_sysex_message sysexMessage;
     sysexMessage.length = length;
@@ -385,9 +433,10 @@ public:
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
-    Serial.print("Received data from MAC, len: ");
-    Serial.println(len);
-    
+    if (!hasPeer(mac))
+    {
+      addPeer(mac);
+    }
     // Handle SysEx separately (larger than 3 bytes)
     if (len > sizeof(midi_message_packet))
     {
@@ -396,10 +445,11 @@ public:
       // TODO: Handle SysEx message if needed
       return;
     }
-    
-    // Convert 3-byte packet to internal message format
+
+    // Convert variable-length packet to internal message format
     midi_message_packet packet;
-    memcpy(&packet, incomingData, sizeof(packet));
+    memset(&packet, 0, sizeof(packet)); // Zero out the packet first
+    memcpy(&packet, incomingData, len); // Copy only received bytes
     midi_message message = packet.toMessage();
 
     switch (message.status)
@@ -529,6 +579,16 @@ public:
   void setHandleSongSelect(void (*callback)(byte value))
   {
     onSongSelectHandler = callback;
+  }
+
+  bool hasPeer(const uint8_t mac[6]) const
+  {
+    for (int i = 0; i < _peersCount; i++)
+    {
+      if (memcmp(_peers[i], mac, 6) == 0)
+        return true;
+    }
+    return false;
   }
 
 private:

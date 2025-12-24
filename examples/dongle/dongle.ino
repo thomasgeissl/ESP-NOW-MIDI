@@ -1,21 +1,13 @@
 #include "./config.h"
-#include <esp_now.h>
-#include <esp_wifi.h>
 #include <WiFi.h>
 #include <Adafruit_TinyUSB.h>
 #include <MIDI.h>
 #include <esp_now_midi.h>
 #include <esp_system.h>
-
-
+#include "MidiMessageHistory.h"
 
 #if HAS_DISPLAY == 1
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-unsigned long updateDisplayTimeStamp = 0;
-const long updateDisplayInterval = 1000;
+#include "SSD1306Display.h"
 #endif
 
 String version = getVersion();
@@ -23,48 +15,26 @@ String version = getVersion();
 Adafruit_USBD_MIDI usb_midi;
 MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
 
-midi_message message;
+esp_now_midi espnowMIDI;
+#if HAS_DISPLAY == 1
+static Display* display = nullptr;
+static uint32_t lastDisplayUpdate = 0;
+#endif
+
 uint8_t baseMac[6];
 String macStr;
 
 
 
-uint8_t peerMacAddresses[DONGLE_MAX_PEERS][6];
-int peerCount = 0;  // Keeps track of how many peers have been added
-
-typedef void (*DataSentCallback)(const uint8_t *mac_addr, esp_now_send_status_t status);
-
-// Callback for send events — adapt to ESP32 core version
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-static void DefaultOnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-}
-#else
-static void DefaultOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-}
-#endif
-
-struct MACAddress {
-  uint8_t bytes[MAC_ADDR_LEN];
-};
-
-struct MidiMessageHistory {
-  midi_message message;
-
-  unsigned long timestamp;  // Time the message was received
-  bool outgoing;
-};
-
-MidiMessageHistory messageHistory[MAX_HISTORY];  // Array to store the message history
-int messageIndex = 0;                            // Index to keep track of the last message in the array
+MidiMessageHistory messageHistory[MAX_HISTORY];
+int messageIndex = 0;
 
 // Function to add a new message to the history
-void addToHistory(const midi_message &msg, bool outgoing = false) {
+void addToHistory(const midi_message& msg, bool outgoing = false) {
   messageHistory[messageIndex].message = msg;
   messageHistory[messageIndex].outgoing = outgoing;
-  messageHistory[messageIndex].timestamp = millis();  // Store the current time
-  messageIndex = (messageIndex + 1) % MAX_HISTORY;    // Circular buffer logic
+  messageHistory[messageIndex].timestamp = millis();
+  messageIndex = (messageIndex + 1) % MAX_HISTORY;
 }
 
 void readMacAddress() {
@@ -78,107 +48,329 @@ void readMacAddress() {
     Serial.println("Failed to read MAC address");
   }
 }
-// Helper function to print MAC addresses
-void printMacAddress(const uint8_t *mac) {
-  for (int i = 0; i < 6; i++) {
-    Serial.printf("%02X", mac[i]);
-    if (i < 5) Serial.print(":");
-  }
-  Serial.println();
-}
-
 
 #if HAS_DISPLAY == 1
 void updateDisplay();
 #endif
-void onDataRecv(const esp_now_recv_info_t *messageInfo, const uint8_t *incomingData, int len);
-void onNoteOn(byte channel, byte pitch, byte velocity);
-void onNoteOff(byte channel, byte pitch, byte velocity);
-void onControlChange(byte channel, byte controller, byte value);
-void onProgramChange(byte channel, byte program);
-void onAfterTouch(byte channel, byte pressure);
-void onPolyAfterTouch(byte channel, byte note, byte pressure);
-void onPitchBend(byte channel, int value);
-void onStart();
-void onStop();
-void onContinue();
-void onClock();
-void onSongSelect(byte value);
-void onSongPosition(unsigned int value);
 
-esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message);
-void send(midi_message message);
+// ESP-NOW MIDI receive handlers - forward to USB MIDI
+void handleNoteOn(byte channel, byte note, byte velocity) {
+  midi_message msg;
+  msg.status = MIDI_NOTE_ON;
+  msg.channel = channel;
+  msg.firstByte = note;
+  msg.secondByte = velocity;
+  addToHistory(msg, false);
 
-bool addPeer(const uint8_t mac[6]) {
-  // Bounds check
-  if (peerCount >= DONGLE_MAX_PEERS) {
-    Serial.println("addPeer: peer table full");
-    return false;
-  }
-
-  // Deduplication
-  for (int i = 0; i < peerCount; i++) {
-    if (memcmp(peerMacAddresses[i], mac, 6) == 0) {
-      return true;  // already known
-    }
-  }
-
-  esp_now_peer_info_t peerInfo = {};
-  memcpy(peerInfo.peer_addr, mac, 6);
-  peerInfo.channel = 0;  // current Wi-Fi channel
-  peerInfo.encrypt = false;
-  peerInfo.ifidx = WIFI_IF_STA;
-
-  esp_err_t err = esp_now_add_peer(&peerInfo);
-  if (err != ESP_OK) {
-    Serial.printf("addPeer failed: %d\n", err);
-    return false;
-  }
-
-  memcpy(peerMacAddresses[peerCount], mac, 6);
-  peerCount++;
-
-  Serial.print("Peer registered: ");
-  printMacAddress(mac);
-
-  return true;
+  MIDI.sendNoteOn(note, velocity, channel);
 }
 
+void handleNoteOff(byte channel, byte note, byte velocity) {
+  midi_message msg;
+  msg.status = MIDI_NOTE_OFF;
+  msg.channel = channel;
+  msg.firstByte = note;
+  msg.secondByte = velocity;
+  addToHistory(msg, false);
+
+  MIDI.sendNoteOff(note, velocity, channel);
+}
+
+void handleControlChange(byte channel, byte control, byte value) {
+  midi_message msg;
+  msg.status = MIDI_CONTROL_CHANGE;
+  msg.channel = channel;
+  msg.firstByte = control;
+  msg.secondByte = value;
+  addToHistory(msg, false);
+
+  MIDI.sendControlChange(control, value, channel);
+}
+
+void handleProgramChange(byte channel, byte program) {
+  midi_message msg;
+  msg.status = MIDI_PROGRAM_CHANGE;
+  msg.channel = channel;
+  msg.firstByte = program;
+  msg.secondByte = 0;
+  addToHistory(msg, false);
+
+  MIDI.sendProgramChange(program, channel);
+}
+
+void handleAfterTouchChannel(byte channel, byte pressure) {
+  midi_message msg;
+  msg.status = MIDI_AFTERTOUCH;
+  msg.channel = channel;
+  msg.firstByte = pressure;
+  msg.secondByte = 0;
+  addToHistory(msg, false);
+
+  MIDI.sendAfterTouch(pressure, channel);
+}
+
+void handleAfterTouchPoly(byte channel, byte note, byte pressure) {
+  midi_message msg;
+  msg.status = MIDI_POLY_AFTERTOUCH;
+  msg.channel = channel;
+  msg.firstByte = note;
+  msg.secondByte = pressure;
+  addToHistory(msg, false);
+
+  MIDI.sendAfterTouch(note, pressure, channel);
+}
+
+void handlePitchBend(byte channel, int value) {
+  midi_message msg;
+  msg.status = MIDI_PITCH_BEND;
+  msg.channel = channel;
+  int unsignedValue = value + 8192;  // Convert to unsigned
+  msg.firstByte = unsignedValue & 0x7F;
+  msg.secondByte = (unsignedValue >> 7) & 0x7F;
+  addToHistory(msg, false);
+
+  MIDI.sendPitchBend(value + 8192, channel);  // MIDI library expects 0-16383
+}
+
+void handleStart() {
+  midi_message msg;
+  msg.status = MIDI_START;
+  msg.channel = 0;
+  msg.firstByte = 0;
+  msg.secondByte = 0;
+  addToHistory(msg, false);
+
+  MIDI.sendStart();
+}
+
+void handleStop() {
+  midi_message msg;
+  msg.status = MIDI_STOP;
+  msg.channel = 0;
+  msg.firstByte = 0;
+  msg.secondByte = 0;
+  addToHistory(msg, false);
+
+  MIDI.sendStop();
+}
+
+void handleContinue() {
+  midi_message msg;
+  msg.status = MIDI_CONTINUE;
+  msg.channel = 0;
+  msg.firstByte = 0;
+  msg.secondByte = 0;
+  addToHistory(msg, false);
+
+  MIDI.sendContinue();
+}
+
+void handleClock() {
+  // Don't print or add to history - too many messages
+  MIDI.sendClock();
+}
+
+void handleSongPosition(uint16_t value) {
+  // Don't add to history - too frequent
+  MIDI.sendSongPosition(value);
+}
+
+void handleSongSelect(byte value) {
+  midi_message msg;
+  msg.status = MIDI_SONG_SELECT;
+  msg.channel = 0;
+  msg.firstByte = value;
+  msg.secondByte = 0;
+  addToHistory(msg, false);
+
+  MIDI.sendSongSelect(value);
+}
+
+// USB MIDI receive handlers - forward to ESP-NOW
+void onNoteOn(byte channel, byte pitch, byte velocity) {
+  midi_message msg;
+  msg.status = MIDI_NOTE_ON;
+  msg.channel = channel;
+  msg.firstByte = pitch;
+  msg.secondByte = velocity;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendNoteOn(pitch, velocity, channel);
+}
+
+void onNoteOff(byte channel, byte pitch, byte velocity) {
+  midi_message msg;
+  msg.status = MIDI_NOTE_OFF;
+  msg.channel = channel;
+  msg.firstByte = pitch;
+  msg.secondByte = velocity;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendNoteOff(pitch, velocity, channel);
+}
+
+void onControlChange(byte channel, byte controller, byte value) {
+  midi_message msg;
+  msg.status = MIDI_CONTROL_CHANGE;
+  msg.channel = channel;
+  msg.firstByte = controller;
+  msg.secondByte = value;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendControlChange(controller, value, channel);
+}
+
+void onProgramChange(byte channel, byte program) {
+  midi_message msg;
+  msg.status = MIDI_PROGRAM_CHANGE;
+  msg.channel = channel;
+  msg.firstByte = program;
+  msg.secondByte = 0;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendProgramChange(program, channel);
+}
+
+void onAfterTouch(byte channel, byte pressure) {
+  midi_message msg;
+  msg.status = MIDI_AFTERTOUCH;
+  msg.channel = channel;
+  msg.firstByte = pressure;
+  msg.secondByte = 0;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendAfterTouch(pressure, channel);
+}
+
+void onPolyAfterTouch(byte channel, byte note, byte pressure) {
+  midi_message msg;
+  msg.status = MIDI_POLY_AFTERTOUCH;
+  msg.channel = channel;
+  msg.firstByte = note;
+  msg.secondByte = pressure;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendAfterTouchPoly(note, pressure, channel);
+}
+
+void onPitchBend(byte channel, int value) {
+  midi_message msg;
+  msg.status = MIDI_PITCH_BEND;
+  msg.channel = channel;
+  msg.firstByte = value & 0x7F;
+  msg.secondByte = (value >> 7) & 0x7F;
+  addToHistory(msg, true);
+
+  // Convert from MIDI library format (0-16383) to signed (-8192 to 8191)
+  espnowMIDI.sendPitchBend(value - 8192, channel);
+}
+
+void onStart() {
+  midi_message msg;
+  msg.status = MIDI_START;
+  msg.channel = 0;
+  msg.firstByte = 0;
+  msg.secondByte = 0;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendStart();
+}
+
+void onStop() {
+  midi_message msg;
+  msg.status = MIDI_STOP;
+  msg.channel = 0;
+  msg.firstByte = 0;
+  msg.secondByte = 0;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendStop();
+}
+
+void onContinue() {
+  midi_message msg;
+  msg.status = MIDI_CONTINUE;
+  msg.channel = 0;
+  msg.firstByte = 0;
+  msg.secondByte = 0;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendContinue();
+}
+
+void onClock() {
+  // Don't print or add to history - too many messages
+  espnowMIDI.sendClock();
+}
+
+void onSongPosition(unsigned int value) {
+  // Don't add to history - too frequent
+  espnowMIDI.sendSongPosition(value);
+}
+
+void onSongSelect(byte value) {
+  midi_message msg;
+  msg.status = MIDI_SONG_SELECT;
+  msg.channel = 0;
+  msg.firstByte = value;
+  msg.secondByte = 0;
+  addToHistory(msg, true);
+
+  espnowMIDI.sendSongSelect(value);
+}
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.printf("ESP-IDF Version: %s\n", esp_get_idf_version());
 
-  // Init ESP-NOW
+  Serial.println("=== ESP-NOW MIDI DONGLE ===");
+  Serial.printf("ESP-IDF Version: %s\n", esp_get_idf_version());
+  Serial.printf("Channel: %d\n", ESP_NOW_MIDI_CHANNEL);
+
+  // Initialize WiFi
   WiFi.mode(WIFI_STA);
   readMacAddress();
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  } else {
-    Serial.println("successfully initialized ESP-NOW");
-  }
-  esp_now_register_recv_cb(esp_now_recv_cb_t(onDataRecv));
-  esp_now_register_send_cb(DefaultOnDataSent);
+  Serial.print("Mac: ");
+  Serial.println(macStr);
 
-  // HERE YOU COULD MANUALLY ENTER THE MAC ADDRESS OF THE RECEIVER
-  uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
-  addPeer(peerMacAddress);
+  // Initialize ESP-NOW MIDI library
+  espnowMIDI.setup();
 
-  // Init MIDI
-  MIDI.begin(MIDI_CHANNEL_OMNI);
+  // Set ESP-NOW receive handlers
+  espnowMIDI.setHandleNoteOn(handleNoteOn);
+  espnowMIDI.setHandleNoteOff(handleNoteOff);
+  espnowMIDI.setHandleControlChange(handleControlChange);
+  espnowMIDI.setHandleProgramChange(handleProgramChange);
+  espnowMIDI.setHandlePitchBend(handlePitchBend);
+  espnowMIDI.setHandleAfterTouchChannel(handleAfterTouchChannel);
+  espnowMIDI.setHandleAfterTouchPoly(handleAfterTouchPoly);
+  espnowMIDI.setHandleStart(handleStart);
+  espnowMIDI.setHandleStop(handleStop);
+  espnowMIDI.setHandleContinue(handleContinue);
+  espnowMIDI.setHandleClock(handleClock);
+  espnowMIDI.setHandleSongPosition(handleSongPosition);
+  espnowMIDI.setHandleSongSelect(handleSongSelect);
 
+  // Add known peer (optional - or wait for auto-discovery)
+  // uint8_t clientMac[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+  // espnowMIDI.addPeer(clientMac);
+
+  Serial.print("Registered peers: ");
+  Serial.println(espnowMIDI.getPeersCount());
+
+  // Initialize USB MIDI
   TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
   TinyUSBDevice.setProductDescriptor("enomik3000_dongle");
 
-  // If already enumerated, additional class driverr begin() e.g msc, hid, midi won't take effect until re-enumeration
   if (TinyUSBDevice.mounted()) {
     TinyUSBDevice.detach();
     delay(10);
     TinyUSBDevice.attach();
   }
 
+  MIDI.begin(MIDI_CHANNEL_OMNI);
+
+  // Set USB MIDI transmit handlers
   MIDI.setHandleNoteOn(onNoteOn);
   MIDI.setHandleNoteOff(onNoteOff);
   MIDI.setHandleControlChange(onControlChange);
@@ -192,390 +384,39 @@ void setup() {
   MIDI.setHandleClock(onClock);
   MIDI.setHandleSongPosition(onSongPosition);
   MIDI.setHandleSongSelect(onSongSelect);
-  // MIDI.setHandleSystemExclusive(SystemExclusiveCallback fptr);
 
-  // Init display
+  // Initialize display
 #if HAS_DISPLAY == 1
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ;  // Don't proceed, loop forever
+  static SSD1306Display ssd1306;
+
+  display = &ssd1306;
+
+  if (!display->begin()) {
+    Serial.println("Display init failed");
+    display = nullptr;
   }
-  display.clearDisplay();
 #endif
+
+  Serial.println("Setup complete - ready!");
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
+  unsigned long now = millis();
+
+  // Read USB MIDI
   MIDI.read();
-#if HAS_DISPLAY == 1
-  if (currentMillis - updateDisplayTimeStamp >= UPDATE_DISPLAY_INTERVAL) {
-    updateDisplayTimeStamp = currentMillis;
-    updateDisplay();
-  }
-#endif
-}
 
 #if HAS_DISPLAY == 1
-void updateDisplay() {
-  esp_now_peer_num_t peerInfo;
-  esp_now_get_peer_num(&peerInfo);
+  if (display && (now - lastDisplayUpdate) >= UPDATE_DISPLAY_INTERVAL) {
+    lastDisplayUpdate = now;
 
-  // Use static buffers to avoid heap allocations
-  static char macStr[18];         // Static to avoid repeated allocation
-  static char displayBuffer[64];  // Reusable buffer for display strings
-
-  // Format MAC address once
-  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-           baseMac[0], baseMac[1], baseMac[2],
-           baseMac[3], baseMac[4], baseMac[5]);
-
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 0);
-
-  // Use snprintf instead of String concatenation
-  snprintf(displayBuffer, sizeof(displayBuffer), "mac:%s", macStr);
-  display.println(displayBuffer);
-
-  unsigned long displayUptime = (millis() / 1000) % 86400;  // Reset to 0 every 24h
-
-  snprintf(displayBuffer, sizeof(displayBuffer), "v%s con:%d t:%lu",
-           version.c_str(), peerCount, displayUptime);
-  display.println(displayBuffer);
-
-  int lineY = 18;
-  display.drawLine(0, lineY, SCREEN_WIDTH, lineY, WHITE);
-
-  int yOffset = 22;  // Start rendering messages below the MAC address
-  for (int i = 0; i < MAX_HISTORY; i++) {
-    int index = (messageIndex + i) % MAX_HISTORY;
-
-    // Only display non-empty messages
-    if (messageHistory[index].timestamp == 0) {
-      continue;
-    }
-
-    // Use static buffers for message formatting
-    static char statusString[8];
-    static char channel[3];
-    static char firstByte[4];
-    static char secondByte[4];
-
-    // Format channel
-    if (messageHistory[index].message.channel == 16) {
-      strcpy(channel, "G");
-    } else {
-      snprintf(channel, sizeof(channel), "%X", messageHistory[index].message.channel);
-    }
-
-    // Format data bytes
-    snprintf(firstByte, sizeof(firstByte), "%3d", messageHistory[index].message.firstByte);
-    snprintf(secondByte, sizeof(secondByte), "%3d", messageHistory[index].message.secondByte);
-
-    // Determine status string and clear data bytes if not needed
-    switch (messageHistory[index].message.status) {
-      case MIDI_NOTE_ON:
-        strcpy(statusString, "N_ON  ");
-        break;
-      case MIDI_NOTE_OFF:
-        strcpy(statusString, "N_OFF ");
-        break;
-      case MIDI_CONTROL_CHANGE:
-        strcpy(statusString, "CC    ");
-        break;
-      case MIDI_PROGRAM_CHANGE:
-        strcpy(statusString, "PC    ");
-        break;
-      case MIDI_PITCH_BEND:
-        strcpy(statusString, "PBEND ");
-        break;
-      case MIDI_AFTERTOUCH:
-        strcpy(statusString, "AFTER ");
-        break;
-      case MIDI_POLY_AFTERTOUCH:
-        strcpy(statusString, "PAFTER");
-        break;
-      case MIDI_START:
-        strcpy(statusString, "START ");
-        channel[0] = '\0';
-        firstByte[0] = '\0';
-        secondByte[0] = '\0';
-        break;
-      case MIDI_STOP:
-        strcpy(statusString, "STOP  ");
-        channel[0] = '\0';
-        firstByte[0] = '\0';
-        secondByte[0] = '\0';
-        break;
-      case MIDI_CONTINUE:
-        strcpy(statusString, "CONT  ");
-        channel[0] = '\0';
-        firstByte[0] = '\0';
-        secondByte[0] = '\0';
-        break;
-      default:
-        strcpy(statusString, "n/a   ");
-        break;
-    }
-
-    // Display the message line
-    display.setCursor(0, yOffset);
-    if (messageHistory[index].outgoing) {
-      display.print("-> ");
-    } else {
-      display.print("<- ");
-    }
-    display.print(channel);
-    display.print(" ");
-    display.print(statusString);
-    display.print(" ");
-    display.print(firstByte);
-    display.print(" ");
-    display.print(secondByte);
-
-    yOffset += 8;  // Move to the next line (8 pixels down)
-
-    // Check if there's space left on the display
-    if (yOffset > SCREEN_HEIGHT - 8) {
-      break;  // Prevent writing off the screen
-    }
+    display->update(
+      baseMac,
+      version.c_str(),
+      espnowMIDI.getPeersCount(),
+      messageHistory,
+      MAX_HISTORY,
+      messageIndex);
   }
-
-  display.display();
-}
 #endif
-
-
-void onDataRecv(const esp_now_recv_info_t *messageInfo, const uint8_t *incomingData, int len) {
-  // printMacAddress(messageInfo->src_addr);
-
-  bool peerExists = false;
-  for (int i = 0; i < peerCount; i++) {
-    if (memcmp(peerMacAddresses[i], messageInfo->src_addr, 6) == 0) {
-      peerExists = true;
-      break;
-    }
-  }
-  if (!peerExists && peerCount < DONGLE_MAX_PEERS) {
-    memcpy(peerMacAddresses[peerCount], messageInfo->src_addr, 6);
-    //regiester peer
-    esp_now_peer_info_t peerInfo = {};
-    memcpy(peerInfo.peer_addr, peerMacAddresses[peerCount], 6);
-    peerInfo.channel = 0;      // Use the default Wi-Fi channel
-    peerInfo.encrypt = false;  // Use unencrypted communication, or change as needed
-
-    esp_err_t result = esp_now_add_peer(&peerInfo);
-    if (result == ESP_OK) {
-      Serial.println("Peer added successfully.");
-    } else {
-      Serial.print("Failed to add peer, error: ");
-      Serial.println(result);
-    }
-    peerCount++;
-  }
-
-  if (len == sizeof(midi_message_packet)) {
-    // Receive as packet, convert to message
-    midi_message_packet packet;
-    memcpy(&packet, incomingData, sizeof(packet));
-    message = packet.toMessage();  // Convert 0-based channel to 1-based
-  } else {
-    // Fallback for old 4-byte format (backward compatibility)
-    memcpy(&message, incomingData, sizeof(message));
-  }
-  addToHistory(message);
-
-  auto status = message.status;
-  auto channel = message.channel;
-  switch (status) {
-    case MIDI_NOTE_ON:
-      {
-        MIDI.sendNoteOn(message.firstByte, message.secondByte, channel);
-        break;
-      }
-    case MIDI_NOTE_OFF:
-      {
-        MIDI.sendNoteOff(message.firstByte, message.secondByte, channel);
-        break;
-      }
-    case MIDI_CONTROL_CHANGE:
-      {
-        MIDI.sendControlChange(message.firstByte, message.secondByte, channel);
-        break;
-      }
-    case MIDI_PROGRAM_CHANGE:
-      {
-        MIDI.sendProgramChange(message.firstByte, channel);
-        break;
-      }
-    case MIDI_AFTERTOUCH:
-      {
-        MIDI.sendAfterTouch(message.firstByte, channel);
-        break;
-      }
-    case MIDI_POLY_AFTERTOUCH:
-      {
-        MIDI.sendAfterTouch(message.firstByte, message.secondByte, channel);
-        break;
-      }
-    case MIDI_PITCH_BEND:
-      {
-        int pitchBendValue = (message.secondByte << 7) | message.firstByte;
-
-        MIDI.sendPitchBend(pitchBendValue, channel);
-        break;
-      }
-    case MIDI_START:
-      {
-        MIDI.sendStart();
-        break;
-      }
-    case MIDI_STOP:
-      {
-        MIDI.sendStop();
-        break;
-      }
-    case MIDI_CONTINUE:
-      {
-        MIDI.sendContinue();
-        break;
-      }
-    case MIDI_TIME_CLOCK:
-      {
-        MIDI.sendClock();
-        break;
-      }
-  }
-}
-
-void onNoteOn(byte channel, byte pitch, byte velocity) {
-  midi_message message;
-  message.status = MIDI_NOTE_ON;
-  message.channel = channel;
-  message.firstByte = pitch;
-  message.secondByte = velocity;
-  send(message);
-}
-void onNoteOff(byte channel, byte pitch, byte velocity) {
-  midi_message message;
-  message.status = MIDI_NOTE_OFF;
-  message.channel = channel;
-  message.firstByte = pitch;
-  message.secondByte = velocity;
-  send(message);
-}
-void onControlChange(byte channel, byte controller, byte value) {
-  midi_message message;
-  message.status = MIDI_CONTROL_CHANGE;
-  message.channel = channel;
-  message.firstByte = controller;
-  message.secondByte = value;
-  send(message);
-}
-void onProgramChange(byte channel, byte program) {
-  midi_message message;
-  message.status = MIDI_PROGRAM_CHANGE;
-  message.channel = channel;
-  message.firstByte = program;
-  send(message);
-}
-void onAfterTouch(byte channel, byte pressure) {
-  midi_message message;
-  message.status = MIDI_AFTERTOUCH;
-  message.channel = channel;
-  message.firstByte = pressure;
-  send(message);
-}
-void onPolyAfterTouch(byte channel, byte note, byte pressure) {
-  midi_message message;
-  message.status = MIDI_POLY_AFTERTOUCH;
-  message.channel = channel;
-  message.firstByte = note;
-  message.secondByte = pressure;
-  send(message);
-}
-void onPitchBend(byte channel, int value) {
-  midi_message message;
-  message.status = MIDI_PITCH_BEND;
-  message.channel = channel;
-  // Ensure value is within the valid 14-bit range (0 - 16383)
-  value = value & 0x3FFF;  // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
-
-  // Split the 14-bit value into LSB and MSB (each 7 bits)
-  message.firstByte = value & 0x7F;          // LSB: lower 7 bits of the pitch bend value
-  message.secondByte = (value >> 7) & 0x7F;  // MSB: upper 7 bits of the pitch bend value
-  send(message);
-}
-
-void onStart() {
-  midi_message message;
-  message.status = MIDI_START;
-  send(message);
-}
-void onStop() {
-  midi_message message;
-  message.status = MIDI_STOP;
-  send(message);
-}
-void onContinue() {
-  midi_message message;
-  message.status = MIDI_CONTINUE;
-  send(message);
-}
-void onClock() {
-  midi_message message;
-  message.status = MIDI_TIME_CLOCK;
-  send(message);
-}
-
-void onSongPosition(unsigned int value) {
-  midi_message message;
-  message.status = MIDI_SONG_POS_POINTER;
-  // Ensure value is within the valid 14-bit range (0 - 16383)
-  value = value & 0x3FFF;  // Mask to ensure it's 14 bits (0x3FFF = 16383 in decimal)
-
-  // Split the 14-bit value into LSB and MSB (each 7 bits)
-  message.firstByte = value & 0x7F;          // LSB: lower 7 bits of the pitch bend value
-  message.secondByte = (value >> 7) & 0x7F;  // MSB: upper 7 bits of the pitch bend value
-  send(message);
-}
-void onSongSelect(byte value) {
-  message.status = MIDI_SONG_SELECT;
-  message.firstByte = value;
-  send(message);
-}
-
-esp_err_t send(const uint8_t mac[MAC_ADDR_LEN], midi_message message) {
-  esp_err_t result = esp_now_send(mac, (uint8_t *)&message, sizeof(message));
-  return result;
-}
-void send(midi_message message) {
-  bool shouldAddToHistory = true;  // should go later into function params to filter out clock messages
-  switch (message.status) {
-    case MIDI_TIME_CLOCK:
-    case MIDI_SONG_POS_POINTER:
-      {
-        shouldAddToHistory = false;
-        break;
-      }
-    default:
-      break;
-  }
-
-
-  for (int i = 0; i < peerCount; i++) {
-    // printMacAddress(peerMacAddresses[i]);
-    esp_err_t result = esp_now_send(peerMacAddresses[i], (uint8_t *)&message, sizeof(message));
-    if (result != ESP_OK) {
-      Serial.print("Failed to send to peer ");
-      Serial.print(" Error code: ");
-      Serial.println(result);
-    }
-  }
-
-  if (shouldAddToHistory) {
-    addToHistory(message, true);
-  }
 }
