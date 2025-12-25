@@ -36,6 +36,8 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
       * MIDI Ch 4, NOTE 127, VEL: 127 -> DMX Channel 512, value: 127*2
 
 ## breaking changes (this library is under active development => please use make sure you are using the latest version)
+* This repo uses Semantic Versioning, although strict adherence will only come into effect at version 1.0.0.
+* Starting with version 0.10.0 the esp_now_midi setup was renamed to begin, power saving has been disabled in flavor for lower latencies (can be enabled by setting begin(reducePowerAtCostOfLatency=true)
 * Starting with version 0.9.0, packages are sent as 3 byte messages (channel+status combined, as the MIDI specs), older version have used 4 bytes
 * Starting with version 0.6, this library requires ESP32 board version greater or equal than 3.3.0 
 
@@ -43,9 +45,10 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
 ## usage
 1. Upload the print_mac example to an ESP32-S2 Mini board. The MAC address will be printed to via serial, or if you have a display connect to the dongle, you can skip this step, as the mac address will be printed on the display.
 1. Upload the dongle example to an ESP32-S2 Mini board.
-1. Copy the MAC address and paste it into the sender's setup arguments.
-1. Integrate your sensor reading code into the sender.
-1. Use the provided API to send MIDI messages, similar to the original MIDI library.
+2. Copy the MAC address of the dongle and register it via the addPeer function
+3. Integrate your sensor reading code into the sender.
+4. Use the provided API to send MIDI messages, similar to the original MIDI library.
+5. Or use the client with the no-code enomik web-app
 
 if you are planning to send midi messages from your computer to your other esp32 micro controller, the dongle firmware will forward midi messages received via usb midi, the sender first needs to register its mac address by sending any midi message to the dongle via esp now midi.
 
@@ -87,9 +90,6 @@ A circuit python version is in the making as well. Contributions here are very w
 * examples/dongle additionally depends on
   * Adafruit GFX Library
   * Adafruit SSD1306
-* examples/client depends on
-  * Adafruit MPU6050
-  * Adafruit VL53L0x
 * examples/client_dac_i2s depends on mozzi
 * examples/client_dmx depends on SparkfunDMX 
 
