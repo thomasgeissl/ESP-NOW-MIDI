@@ -14,6 +14,20 @@
 #define ESP_NOW_NEW_CALLBACK_SIGNATURE 1
 #endif
 
+// Optimized peer storage with packed MAC address for fast comparison
+struct PeerInfo {
+    uint8_t mac[6];
+    uint64_t packed_mac;  // Stored as 48-bit value in 64-bit integer
+    
+    static uint64_t packMac(const uint8_t mac[6]) {
+        uint64_t packed = 0;
+        for (int i = 0; i < 6; i++) {
+            packed |= ((uint64_t)mac[i] << (i * 8));
+        }
+        return packed;
+    }
+};
+
 class esp_now_midi
 {
 public:
@@ -81,21 +95,22 @@ public:
   }
 #endif
 
-  void begin(bool reducePowerAtCostOfLatency = false, DataSentCallback callback = DefaultOnDataSent)
+  void begin(bool reducePowerAtCostOfLatency = false, bool autoPeerDiscovery = true, DataSentCallback callback = DefaultOnDataSent)
   {
     _instance = this;
+    _autoPeerDiscovery = autoPeerDiscovery;
     esp_wifi_set_channel(ESP_NOW_MIDI_CHANNEL, WIFI_SECOND_CHAN_NONE);
 
-       // Configure power saving mode
+    // Configure power saving mode
     if (reducePowerAtCostOfLatency)
     {
-      esp_wifi_set_ps(WIFI_PS_MIN_MODEM);  // Enable minimum modem power saving
-      esp_wifi_set_max_tx_power(44);        // Reduce TX power (44 = 11 dBm)
+      esp_wifi_set_ps(WIFI_PS_MIN_MODEM); // Enable minimum modem power saving
+      esp_wifi_set_max_tx_power(44);      // Reduce TX power (44 = 11 dBm)
     }
     else
     {
-      esp_wifi_set_ps(WIFI_PS_NONE);        // Disable power saving for best performance
-      esp_wifi_set_max_tx_power(84);        // Maximum TX power (84 = 21 dBm)
+      esp_wifi_set_ps(WIFI_PS_NONE); // Disable power saving for best performance
+      esp_wifi_set_max_tx_power(84); // Maximum TX power (84 = 21 dBm)
     }
 
     userDataSentCallback = callback;
@@ -155,7 +170,8 @@ public:
     }
 
     // Store the peer in our array AFTER successful ESP-NOW registration
-    memcpy(_peers[_peersCount], macAddress, 6);
+    memcpy(_peers[_peersCount].mac, macAddress, 6);
+    _peers[_peersCount].packed_mac = PeerInfo::packMac(macAddress);
     _peersCount++;
     Serial.print("Peer added successfully. Total peers: ");
     Serial.println(_peersCount);
@@ -177,7 +193,7 @@ public:
       Serial.print(": ");
       for (int j = 0; j < 6; j++)
       {
-        Serial.print(_peers[i][j], HEX);
+        Serial.print(_peers[i].mac[j], HEX);
         if (j < 5)
           Serial.print(":");
       }
@@ -199,7 +215,7 @@ public:
 
     for (int i = 0; i < _peersCount; i++)
     {
-      esp_err_t err = esp_now_send(_peers[i], data, len);
+      esp_err_t err = esp_now_send(_peers[i].mac, data, len);
       if (err != ESP_OK)
       {
         result = err; // Return last error if any
@@ -443,7 +459,7 @@ public:
 
   void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   {
-    if (!hasPeer(mac))
+    if (_autoPeerDiscovery && !hasPeer(mac))
     {
       addPeer(mac);
     }
@@ -593,19 +609,21 @@ public:
 
   bool hasPeer(const uint8_t mac[6]) const
   {
+    uint64_t packed = PeerInfo::packMac(mac);
     for (int i = 0; i < _peersCount; i++)
     {
-      if (memcmp(_peers[i], mac, 6) == 0)
+      if (_peers[i].packed_mac == packed)
         return true;
     }
     return false;
   }
 
 private:
-  uint8_t _peers[MAX_PEERS][6];   // Array to store MAC addresses of peers
+  PeerInfo _peers[MAX_PEERS];     // Array to store peer info with optimized MAC storage
   int _peersCount;                // Current number of peers
   static esp_now_midi *_instance; // Static pointer to hold the instance
   DataSentCallback userDataSentCallback = nullptr;
+  bool _autoPeerDiscovery = true;
 
   // MIDI Handlers
   void (*onNoteOnHandler)(byte channel, byte note, byte velocity) = nullptr;
