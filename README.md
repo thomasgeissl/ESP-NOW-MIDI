@@ -60,6 +60,11 @@ This library is fully integrated in the [ESP-NOW MIDI Kit](https://grantler-inst
 ### Circuit Python (WIP)
 A circuit python version is in the making as well. Contributions here are very welcome.
 
+## benchmarks
+* proper benchmarks will follow
+* i did some early tests measuring the round trip time: pd --usb midi--> dongle --esp-now midi--> client_echo --esp-now-midi--> dongle --usb midi--> pd
+* s2 (single core) on both sides, pd running on ubuntu, distance ~3m, 1000 control change message, avg time = ~13ms => ~7ms per message
+
 
 ## sysex interface
 ### set pin config
