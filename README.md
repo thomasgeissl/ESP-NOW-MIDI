@@ -35,7 +35,7 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
       * MIDI Ch 1, NOTE 0, VEL: 127 -> DMX Channel 1, value: 127*2
       * MIDI Ch 4, NOTE 127, VEL: 127 -> DMX Channel 512, value: 127*2
 
-## breaking changes (this library is under active development => please use make sure you are using the latest version)
+## breaking changes (this library is under active development => please make sure you are using the latest version)
 * This repo uses Semantic Versioning, although strict adherence will only come into effect at version 1.0.0.
 * Starting with version 0.10.0 the esp_now_midi setup was renamed to begin, power saving has been disabled in flavor for lower latencies (can be enabled by setting begin(reducePowerAtCostOfLatency=true)
 * Starting with version 0.9.0, packages are sent as 3 byte messages (channel+status combined, as the MIDI specs), older version have used 4 bytes
@@ -64,6 +64,7 @@ A circuit python version is in the making as well. Contributions here are very w
 * proper benchmarks will follow
 * i did some early tests measuring the round trip time: pd --usb midi--> dongle --esp-now midi--> client_echo --esp-now-midi--> dongle --usb midi--> pd
 * s2 (single core) on both sides, pd running on ubuntu, distance ~3m, 1000 control change message, avg time = ~13ms => ~7ms per message
+* running it without the client overhead, on dual core esp and a faster host might bring even better results
 
 
 ## sysex interface
