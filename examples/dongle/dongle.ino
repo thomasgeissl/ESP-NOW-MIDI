@@ -334,7 +334,7 @@ void setup() {
   Serial.println(macStr);
 
   // Initialize ESP-NOW MIDI library
-  espnowMIDI.setup();
+  espnowMIDI.begin();
 
   // Set ESP-NOW receive handlers
   espnowMIDI.setHandleNoteOn(handleNoteOn);

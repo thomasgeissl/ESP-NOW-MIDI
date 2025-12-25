@@ -52,7 +52,7 @@ void onPolyAfterTouch(byte channel, byte note, byte value) {
 void setup() {
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
-  ESP_NOW_MIDI.setup();
+  ESP_NOW_MIDI.begin();
   ESP_NOW_MIDI.addPeer(peerMacAddress);
 
   ESP_NOW_MIDI.setHandleNoteOn(onNoteOn);

@@ -81,12 +81,22 @@ public:
   }
 #endif
 
-  void setup(DataSentCallback callback = DefaultOnDataSent)
+  void begin(bool reducePowerAtCostOfLatency = false, DataSentCallback callback = DefaultOnDataSent)
   {
     _instance = this;
     esp_wifi_set_channel(ESP_NOW_MIDI_CHANNEL, WIFI_SECOND_CHAN_NONE);
-    esp_wifi_set_ps(WIFI_PS_NONE);
-    esp_wifi_set_max_tx_power(84);
+
+       // Configure power saving mode
+    if (reducePowerAtCostOfLatency)
+    {
+      esp_wifi_set_ps(WIFI_PS_MIN_MODEM);  // Enable minimum modem power saving
+      esp_wifi_set_max_tx_power(44);        // Reduce TX power (44 = 11 dBm)
+    }
+    else
+    {
+      esp_wifi_set_ps(WIFI_PS_NONE);        // Disable power saving for best performance
+      esp_wifi_set_max_tx_power(84);        // Maximum TX power (84 = 21 dBm)
+    }
 
     userDataSentCallback = callback;
 

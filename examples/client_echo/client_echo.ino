@@ -30,6 +30,18 @@ void onAfterTouch(byte channel, byte value) {
 void onPolyAfterTouch(byte channel, byte note, byte value) {
   _client.sendPolyAfterTouch(note, value, channel);
 }
+void onStart() {
+  _client.sendStart();
+}
+void onStop() {
+  _client.sendStop();
+}
+void onContinue() {
+  _client.sendContinue();
+}
+void onClock() {
+  _client.sendClock();
+}
 
 void setup() {
   Serial.begin(115200);
@@ -43,6 +55,10 @@ void setup() {
   _client.setHandlePitchBend(onPitchBend);
   _client.setHandleAfterTouchChannel(onAfterTouch);
   _client.setHandleAfterTouchPoly(onPolyAfterTouch);
+  _client.setHandleStart(onStart);
+  _client.setHandleStop(onStop);
+  _client.setHandleContinue(onContinue);
+  _client.setHandleClock(onClock);
 
   //register as a client by sending any message
   //this is needed in this case, as the client will stay unkown to the dongle until the first message is sent.

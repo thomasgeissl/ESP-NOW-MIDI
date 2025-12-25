@@ -366,7 +366,7 @@ esp_now_init();
             Serial.println(WiFi.macAddress());
 
             // Initialize ESP-NOW MIDI
-            espnowMIDI.setup();
+            espnowMIDI.begin();
 
             // --- Set handlers for ESP-NOW ---
             // espnowMIDI.setHandleSysEx(handleSysExStatic);
