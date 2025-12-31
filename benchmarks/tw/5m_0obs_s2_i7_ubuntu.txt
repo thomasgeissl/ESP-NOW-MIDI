@@ -1,5 +1,7 @@
 board: lolin esp32-s2-mini
-esp-now-midi distance 5m
+esp-now-midi distance: 5m
+obstacles: 0
+outdoor: true
 iterations: 100
 frequency: 50
 TODO: lscpu
