@@ -49,12 +49,10 @@ namespace enomik
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
         static void onDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status)
         {
-            Serial.println(status == ESP_NOW_SEND_SUCCESS ? "MIDI Success" : "MIDI Failure");
         }
 #else
         static void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
         {
-            Serial.println(status == ESP_NOW_SEND_SUCCESS ? "MIDI Success" : "MIDI Failure");
         }
 #endif
 
@@ -435,7 +433,6 @@ esp_now_init();
         bool sendNoteOn(byte note, byte velocity, byte channel)
         {
             auto err = espnowMIDI.sendNoteOn(note, velocity, channel);
-            Serial.println(espnowMIDI.getPeersCount());
             espnowMIDI.printPeers();
 #ifdef HAS_USB_MIDI
             if (TinyUSBDevice.mounted() && TinyUSBDevice.ready())

@@ -89,7 +89,6 @@ namespace enomik
                     config.midi_channel == channel &&
                     config.midi_note == note)
                 {
-                    Serial.println(config.pin);
                     if (config.mode == ENOMIK_OUTPUT)
                     {
                         digitalWrite(config.pin, velocity > 0 ? HIGH : LOW);
@@ -403,7 +402,6 @@ namespace enomik
 
             if (currentValue != state.lastValue)
             {
-                Serial.println("Pin " + String(config.pin) + " changed to " + String(currentValue));
                 state.lastChangeTime = now;
                 return true;
             }
@@ -495,10 +493,6 @@ namespace enomik
                     state.lastChangeTime = now;
                     state.touched = isTouched;
                     currentValue = isTouched ? config.max_midi_value : config.min_midi_value;
-
-                    Serial.println("Touch " + String(config.pin) +
-                                   " value: " + String(touchValue) +
-                                   " touched: " + String(isTouched));
                     return true;
                 }
             }
@@ -528,10 +522,6 @@ namespace enomik
 
         void sendMidiMessage(const PinConfig &config, int value)
         {
-            Serial.println("Sending MIDI message for pin " + String(config.pin) +
-                           " value: " + String(value) +
-                           " type: " + String(static_cast<uint8_t>(config.midi_type)));
-
             if (!_onMIDISendRequest)
                 return;
 

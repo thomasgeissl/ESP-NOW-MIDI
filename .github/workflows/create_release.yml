@@ -1,0 +1,91 @@
+name: Build and Release ESP32-S2 Sketches
+on:
+  push:
+    branches: 
+      - main
+      - feature/enomik
+    tags:
+      - '*'
+  pull_request:
+    branches: 
+      - main
+      - feature/enomik
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - fqbn: "esp32:esp32:lolin_s2_mini"
+            name: "lolin_s2_mini"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Arduino CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
+      - name: Configure Arduino CLI
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+      - name: Install library dependencies
+        run: |
+          mkdir -p $HOME/Arduino/libraries
+          ln -s $GITHUB_WORKSPACE $HOME/Arduino/libraries/ESP-NOW-MIDI
+          arduino-cli lib install "Adafruit TinyUSB Library"
+          arduino-cli lib install "Adafruit MPU6050"
+          arduino-cli lib install "Adafruit_VL53L0X"
+          arduino-cli lib install "Mozzi"
+          arduino-cli lib install "SparkFun DMX Shield Library"
+          arduino-cli lib install "AceButton"
+      - name: Compile all examples for ${{ matrix.board.name }}
+        run: |
+          mkdir -p build
+          for sketch in examples/*/; do
+            if [ -d "$sketch" ]; then
+              sketch_name=$(basename "$sketch")
+              echo "Building $sketch_name for ${{ matrix.board.name }}"
+              arduino-cli compile --fqbn ${{ matrix.board.fqbn }} "$sketch" --output-dir build/"$sketch_name" || echo "Failed to build $sketch_name for ${{ matrix.board.name }}"
+            fi
+          done
+      - name: Organize binaries
+        run: |
+          mkdir -p binaries
+          BOARD_NAME="${{ matrix.board.name }}"
+          for sketch_dir in build/*/; do
+            if [ -d "$sketch_dir" ]; then
+              sketch_name=$(basename "$sketch_dir")
+              for bin_file in "$sketch_dir"/*.bin; do
+                if [ -f "$bin_file" ]; then
+                  bin_basename=$(basename "$bin_file")
+                  cp "$bin_file" "binaries/${BOARD_NAME}_${sketch_name}_${bin_basename}"
+                fi
+              done
+            fi
+          done
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: esp32s2-binaries-${{ matrix.board.name }}
+          path: binaries/*.bin
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-binaries
+          pattern: esp32s2-binaries-*
+          merge-multiple: true
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: all-binaries/*.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
