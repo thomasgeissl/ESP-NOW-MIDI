@@ -5,9 +5,15 @@ A typical setup requires two ESP-NOW capable boards, where the board connected t
 The ESP32-S2 Mini (Lolin S2 Mini) can act as both a receiver and a sender. An S3 should also work as a receiver.
 Any ESP board with Wi-Fi capabilities should work as a sender.
 
-## use it basically everywhere
+## Use it basically everywhere
 * the dongle shows up as a class compliant midi controller
 * use it with MAX, pd, any DAW, processing, openFrameworks, any game engine that supports MIDI, ... or even in the browser or mobile phone
+
+## Compatibility
+* This library only works with ESP microcontrollers
+* It has been developed using a LOLIN S2 MINI
+* It should work with S3s as well, in the long run, S3 will be the main target microcontroller, due to its dual core architecture
+* When uploading to an S3, please make sure you have USB mode: USB-OTG (TinyUSB) activated
 
 ## Features
 * **enomik::Client I/O** MIDI sysex configuratable client: zero programming for basic I/O, e.g. digital input 3 -> MIDI CC
@@ -35,14 +41,14 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
       * MIDI Ch 1, NOTE 0, VEL: 127 -> DMX Channel 1, value: 127*2
       * MIDI Ch 4, NOTE 127, VEL: 127 -> DMX Channel 512, value: 127*2
 
-## breaking changes (this library is under active development => please make sure you are using the latest version)
+## Breaking changes (this library is under active development => please make sure you are using the latest version)
 * This repo uses Semantic Versioning, although strict adherence will only come into effect at version 1.0.0.
 * Starting with version 0.10.0 the esp_now_midi setup was renamed to begin, power saving has been disabled in flavor for lower latencies (can be enabled by setting begin(reducePowerAtCostOfLatency=true)
 * Starting with version 0.9.0, packages are sent as 3 byte messages (channel+status combined, as the MIDI specs), older version have used 4 bytes
 * Starting with version 0.6, this library requires ESP32 board version greater or equal than 3.3.0 
 
 
-## usage
+## Usage
 1. Upload the print_mac example to an ESP32-S2 Mini board. The MAC address will be printed to via serial, or if you have a display connect to the dongle, you can skip this step, as the mac address will be printed on the display.
 1. Upload the dongle example to an ESP32-S2 Mini board.
 2. Copy the MAC address of the dongle and register it via the addPeer function
@@ -50,9 +56,9 @@ Any ESP board with Wi-Fi capabilities should work as a sender.
 4. Use the provided API to send MIDI messages, similar to the original MIDI library.
 5. Or use the client with the no-code enomik web-app
 
-if you are planning to send midi messages from your computer to your other esp32 micro controller, the dongle firmware will forward midi messages received via usb midi, the sender first needs to register its mac address by sending any midi message to the dongle via esp now midi.
+If you are planning to send midi messages from your computer to your other esp32 micro controller, the dongle firmware will forward midi messages received via usb midi, the sender first needs to register its mac address by sending any midi message to the dongle via esp now midi.
 
-if you are using the dongle with a display then make sure you have set `HAS_DISPLAY 1` in config.h 
+If you are using the dongle with a display then make sure you have set `HAS_DISPLAY 1` in config.h 
 
 ### enomik 3000 (WIP)
 This library is fully integrated in the [ESP-NOW MIDI Kit](https://grantler-instruments.github.io/enomik-app/) - the no-code app for creating (wireless) MIDI devices.
@@ -60,7 +66,7 @@ This library is fully integrated in the [ESP-NOW MIDI Kit](https://grantler-inst
 ### Circuit Python (WIP)
 A circuit python version is in the making as well. Contributions here are very welcome.
 
-## benchmarks
+## Benchmarks
 * proper benchmarks will follow
 * i did some early tests measuring the round trip time: pd --usb midi--> dongle --esp-now midi--> client_echo --esp-now-midi--> dongle --usb midi--> pd
 * s2 (single core) on both sides, pd running on ubuntu, distance ~3m, 1000 control change message, avg time = ~13ms => ~7ms per message
@@ -91,7 +97,7 @@ A circuit python version is in the making as well. Contributions here are very w
 
 * e.g. reset and clear pin configs: `0xF0, 0x7D, 0x09, 0xF7`
 
-## dependencies
+## Dependencies
 * dependencies for the library should be automatically installed
 * examples/dongle additionally depends on
   * Adafruit GFX Library
