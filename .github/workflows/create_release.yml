@@ -1,15 +1,13 @@
-name: Build and Release ESP32-S2 Sketches
+name: Build and Release ESP32 Sketches
 on:
   push:
     branches: 
       - main
-      - feature/enomik
     tags:
       - '*'
   pull_request:
     branches: 
       - main
-      - feature/enomik
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,6 +16,8 @@ jobs:
         board:
           - fqbn: "esp32:esp32:lolin_s2_mini"
             name: "lolin_s2_mini"
+          - fqbn: "esp32:esp32:s3devkitc-1"
+            name: "esp32_s3_generic"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -70,7 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: esp32s2-binaries-${{ matrix.board.name }}
+          name: esp32-binaries-${{ matrix.board.name }}
           path: binaries/*.bin
   release:
     needs: build
@@ -81,7 +81,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: all-binaries
-          pattern: esp32s2-binaries-*
+          pattern: esp32-binaries-*
           merge-multiple: true
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
