@@ -15,7 +15,7 @@ String version = getVersion();
 Adafruit_USBD_MIDI usb_midi;
 MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI);
 
-esp_now_midi espnowMIDI;
+esp_now_midi* espnowMIDI = nullptr;
 #if HAS_DISPLAY == 1
 static Display* display = nullptr;
 static uint32_t lastDisplayUpdate = 0;
@@ -195,7 +195,7 @@ void onNoteOn(byte channel, byte pitch, byte velocity) {
   msg.secondByte = velocity;
   addToHistory(msg, true);
 
-  espnowMIDI.sendNoteOn(pitch, velocity, channel);
+  espnowMIDI->sendNoteOn(pitch, velocity, channel);
 }
 
 void onNoteOff(byte channel, byte pitch, byte velocity) {
@@ -206,7 +206,7 @@ void onNoteOff(byte channel, byte pitch, byte velocity) {
   msg.secondByte = velocity;
   addToHistory(msg, true);
 
-  espnowMIDI.sendNoteOff(pitch, velocity, channel);
+  espnowMIDI->sendNoteOff(pitch, velocity, channel);
 }
 
 void onControlChange(byte channel, byte controller, byte value) {
@@ -217,7 +217,7 @@ void onControlChange(byte channel, byte controller, byte value) {
   msg.secondByte = value;
   addToHistory(msg, true);
 
-  espnowMIDI.sendControlChange(controller, value, channel);
+  espnowMIDI->sendControlChange(controller, value, channel);
 }
 
 void onProgramChange(byte channel, byte program) {
@@ -228,7 +228,7 @@ void onProgramChange(byte channel, byte program) {
   msg.secondByte = 0;
   addToHistory(msg, true);
 
-  espnowMIDI.sendProgramChange(program, channel);
+  espnowMIDI->sendProgramChange(program, channel);
 }
 
 void onAfterTouch(byte channel, byte pressure) {
@@ -239,7 +239,7 @@ void onAfterTouch(byte channel, byte pressure) {
   msg.secondByte = 0;
   addToHistory(msg, true);
 
-  espnowMIDI.sendAfterTouch(pressure, channel);
+  espnowMIDI->sendAfterTouch(pressure, channel);
 }
 
 void onPolyAfterTouch(byte channel, byte note, byte pressure) {
@@ -250,7 +250,7 @@ void onPolyAfterTouch(byte channel, byte note, byte pressure) {
   msg.secondByte = pressure;
   addToHistory(msg, true);
 
-  espnowMIDI.sendAfterTouchPoly(note, pressure, channel);
+  espnowMIDI->sendAfterTouchPoly(note, pressure, channel);
 }
 
 void onPitchBend(byte channel, int value) {
@@ -262,7 +262,7 @@ void onPitchBend(byte channel, int value) {
   addToHistory(msg, true);
 
   // Convert from MIDI library format (0-16383) to signed (-8192 to 8191)
-  espnowMIDI.sendPitchBend(value - 8192, channel);
+  espnowMIDI->sendPitchBend(value - 8192, channel);
 }
 
 void onStart() {
@@ -273,7 +273,7 @@ void onStart() {
   msg.secondByte = 0;
   addToHistory(msg, true);
 
-  espnowMIDI.sendStart();
+  espnowMIDI->sendStart();
 }
 
 void onStop() {
@@ -284,7 +284,7 @@ void onStop() {
   msg.secondByte = 0;
   addToHistory(msg, true);
 
-  espnowMIDI.sendStop();
+  espnowMIDI->sendStop();
 }
 
 void onContinue() {
@@ -295,17 +295,17 @@ void onContinue() {
   msg.secondByte = 0;
   addToHistory(msg, true);
 
-  espnowMIDI.sendContinue();
+  espnowMIDI->sendContinue();
 }
 
 void onClock() {
   // Don't print or add to history - too many messages
-  espnowMIDI.sendClock();
+  espnowMIDI->sendClock();
 }
 
 void onSongPosition(unsigned int value) {
   // Don't add to history - too frequent
-  espnowMIDI.sendSongPosition(value);
+  espnowMIDI->sendSongPosition(value);
 }
 
 void onSongSelect(byte value) {
@@ -316,51 +316,24 @@ void onSongSelect(byte value) {
   msg.secondByte = 0;
   addToHistory(msg, true);
 
-  espnowMIDI.sendSongSelect(value);
+  espnowMIDI->sendSongSelect(value);
 }
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(5000);
 
   Serial.println("=== ESP-NOW MIDI DONGLE ===");
   Serial.printf("ESP-IDF Version: %s\n", esp_get_idf_version());
   Serial.printf("Channel: %d\n", ESP_NOW_MIDI_CHANNEL);
 
-  // Initialize WiFi
-  WiFi.mode(WIFI_STA);
-  readMacAddress();
-  Serial.print("Mac: ");
-  Serial.println(macStr);
-
-  // Initialize ESP-NOW MIDI library
-  espnowMIDI.begin();
-
-  // Set ESP-NOW receive handlers
-  espnowMIDI.setHandleNoteOn(handleNoteOn);
-  espnowMIDI.setHandleNoteOff(handleNoteOff);
-  espnowMIDI.setHandleControlChange(handleControlChange);
-  espnowMIDI.setHandleProgramChange(handleProgramChange);
-  espnowMIDI.setHandlePitchBend(handlePitchBend);
-  espnowMIDI.setHandleAfterTouchChannel(handleAfterTouchChannel);
-  espnowMIDI.setHandleAfterTouchPoly(handleAfterTouchPoly);
-  espnowMIDI.setHandleStart(handleStart);
-  espnowMIDI.setHandleStop(handleStop);
-  espnowMIDI.setHandleContinue(handleContinue);
-  espnowMIDI.setHandleClock(handleClock);
-  espnowMIDI.setHandleSongPosition(handleSongPosition);
-  espnowMIDI.setHandleSongSelect(handleSongSelect);
-
-  // Add known peer (optional - or wait for auto-discovery)
-  // uint8_t clientMac[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
-  // espnowMIDI.addPeer(clientMac);
-
-  Serial.print("Registered peers: ");
-  Serial.println(espnowMIDI.getPeersCount());
 
   // Initialize USB MIDI
   TinyUSBDevice.setManufacturerDescriptor("grantler instruments");
   TinyUSBDevice.setProductDescriptor("enomik3000_dongle");
+
+  usb_midi.begin();
+
 
   if (TinyUSBDevice.mounted()) {
     TinyUSBDevice.detach();
@@ -368,22 +341,57 @@ void setup() {
     TinyUSBDevice.attach();
   }
 
-  MIDI.begin(MIDI_CHANNEL_OMNI);
+  // TinyUSBDevice.setVbusDetection(false);
+  TinyUSBDevice.attach();
 
-  // Set USB MIDI transmit handlers
-  MIDI.setHandleNoteOn(onNoteOn);
-  MIDI.setHandleNoteOff(onNoteOff);
-  MIDI.setHandleControlChange(onControlChange);
-  MIDI.setHandleProgramChange(onProgramChange);
-  MIDI.setHandlePitchBend(onPitchBend);
-  MIDI.setHandleAfterTouchChannel(onAfterTouch);
-  MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
-  MIDI.setHandleStart(onStart);
-  MIDI.setHandleStop(onStop);
-  MIDI.setHandleContinue(onContinue);
-  MIDI.setHandleClock(onClock);
-  MIDI.setHandleSongPosition(onSongPosition);
-  MIDI.setHandleSongSelect(onSongSelect);
+  // Initialize ESP-NOW MIDI library
+  espnowMIDI = new esp_now_midi();
+  espnowMIDI->begin();
+
+  readMacAddress();
+  Serial.print("Mac: ");
+  Serial.println(macStr);
+
+  // Set ESP-NOW receive handlers
+  espnowMIDI->setHandleNoteOn(handleNoteOn);
+  espnowMIDI->setHandleNoteOff(handleNoteOff);
+  espnowMIDI->setHandleControlChange(handleControlChange);
+  espnowMIDI->setHandleProgramChange(handleProgramChange);
+  espnowMIDI->setHandlePitchBend(handlePitchBend);
+  espnowMIDI->setHandleAfterTouchChannel(handleAfterTouchChannel);
+  espnowMIDI->setHandleAfterTouchPoly(handleAfterTouchPoly);
+  espnowMIDI->setHandleStart(handleStart);
+  espnowMIDI->setHandleStop(handleStop);
+  espnowMIDI->setHandleContinue(handleContinue);
+  espnowMIDI->setHandleClock(handleClock);
+  espnowMIDI->setHandleSongPosition(handleSongPosition);
+  espnowMIDI->setHandleSongSelect(handleSongSelect);
+
+  // Add known peer (optional - or wait for auto-discovery)
+  // uint8_t clientMac[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+  // espnowMIDI->addPeer(clientMac);
+
+  Serial.print("Registered peers: ");
+  Serial.println(espnowMIDI->getPeersCount());
+
+
+
+  // MIDI.begin(MIDI_CHANNEL_OMNI);
+
+  // // Set USB MIDI transmit handlers
+  // MIDI.setHandleNoteOn(onNoteOn);
+  // MIDI.setHandleNoteOff(onNoteOff);
+  // MIDI.setHandleControlChange(onControlChange);
+  // MIDI.setHandleProgramChange(onProgramChange);
+  // MIDI.setHandlePitchBend(onPitchBend);
+  // MIDI.setHandleAfterTouchChannel(onAfterTouch);
+  // MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+  // MIDI.setHandleStart(onStart);
+  // MIDI.setHandleStop(onStop);
+  // MIDI.setHandleContinue(onContinue);
+  // MIDI.setHandleClock(onClock);
+  // MIDI.setHandleSongPosition(onSongPosition);
+  // MIDI.setHandleSongSelect(onSongSelect);
 
   // Initialize display
 #if HAS_DISPLAY == 1
@@ -402,9 +410,38 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
+  static bool usbMidiInitialized = false;
 
-  // Read USB MIDI
-  MIDI.read();
+  // Wait for USB to mount, then initialize MIDI
+  if (!usbMidiInitialized && TinyUSBDevice.mounted()) {
+    Serial.println("USB mounted - initializing MIDI");
+
+    MIDI.begin(MIDI_CHANNEL_OMNI);
+
+    // Set USB MIDI handlers
+    MIDI.setHandleNoteOn(onNoteOn);
+    MIDI.setHandleNoteOff(onNoteOff);
+    MIDI.setHandleControlChange(onControlChange);
+    MIDI.setHandleProgramChange(onProgramChange);
+    MIDI.setHandlePitchBend(onPitchBend);
+    MIDI.setHandleAfterTouchChannel(onAfterTouch);
+    MIDI.setHandleAfterTouchPoly(onPolyAfterTouch);
+    MIDI.setHandleStart(onStart);
+    MIDI.setHandleStop(onStop);
+    MIDI.setHandleContinue(onContinue);
+    MIDI.setHandleClock(onClock);
+    MIDI.setHandleSongPosition(onSongPosition);
+    MIDI.setHandleSongSelect(onSongSelect);
+
+    usbMidiInitialized = true;
+    Serial.println("USB MIDI ready!");
+  }
+
+  // Only read MIDI if initialized
+  if (usbMidiInitialized) {
+    MIDI.read();
+  }
+
 
 #if HAS_DISPLAY == 1
   if (display && (now - lastDisplayUpdate) >= UPDATE_DISPLAY_INTERVAL) {
@@ -413,7 +450,7 @@ void loop() {
     display->update(
       baseMac,
       version.c_str(),
-      espnowMIDI.getPeersCount(),
+      espnowMIDI->getPeersCount(),
       messageHistory,
       MAX_HISTORY,
       messageIndex);

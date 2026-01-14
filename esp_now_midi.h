@@ -6,6 +6,7 @@
 #include "./version.h"
 #include <esp_now.h>
 #include <esp_wifi.h> // Needed for wifi_tx_info_t in newer versions
+#include <WiFi.h>
 #include "./midiHelpers.h"
 #define ESP_NOW_DEBUGGING 0
 
@@ -15,17 +16,20 @@
 #endif
 
 // Optimized peer storage with packed MAC address for fast comparison
-struct PeerInfo {
-    uint8_t mac[6];
-    uint64_t packed_mac;  // Stored as 48-bit value in 64-bit integer
-    
-    static uint64_t packMac(const uint8_t mac[6]) {
-        uint64_t packed = 0;
-        for (int i = 0; i < 6; i++) {
-            packed |= ((uint64_t)mac[i] << (i * 8));
-        }
-        return packed;
+struct PeerInfo
+{
+  uint8_t mac[6];
+  uint64_t packed_mac; // Stored as 48-bit value in 64-bit integer
+
+  static uint64_t packMac(const uint8_t mac[6])
+  {
+    uint64_t packed = 0;
+    for (int i = 0; i < 6; i++)
+    {
+      packed |= ((uint64_t)mac[i] << (i * 8));
     }
+    return packed;
+  }
 };
 
 class esp_now_midi
@@ -94,41 +98,52 @@ public:
     }
   }
 #endif
-
   void begin(bool reducePowerAtCostOfLatency = false, bool autoPeerDiscovery = true, DataSentCallback callback = DefaultOnDataSent)
   {
     _instance = this;
     _autoPeerDiscovery = autoPeerDiscovery;
-    esp_wifi_set_channel(ESP_NOW_MIDI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    userDataSentCallback = callback; // This needs to be INSIDE the function
 
-    // Configure power saving mode
-    if (reducePowerAtCostOfLatency)
+    // Initialize WiFi if needed
+    if (WiFi.getMode() != WIFI_MODE_STA)
     {
-      esp_wifi_set_ps(WIFI_PS_MIN_MODEM); // Enable minimum modem power saving
-      esp_wifi_set_max_tx_power(44);      // Reduce TX power (44 = 11 dBm)
-    }
-    else
-    {
-      esp_wifi_set_ps(WIFI_PS_NONE); // Disable power saving for best performance
-      esp_wifi_set_max_tx_power(84); // Maximum TX power (84 = 21 dBm)
+      WiFi.mode(WIFI_STA);
+      WiFi.disconnect();
+      delay(100);
     }
 
-    userDataSentCallback = callback;
+    // Try to initialize ESP-NOW (gracefully handle if already initialized)
+    esp_err_t init_result = esp_now_init();
 
-    // Initialize peers array
-    _peersCount = 0;
-
-    // Initialize ESP-NOW FIRST
-    if (esp_now_init() != ESP_OK)
+    if (init_result == ESP_ERR_ESPNOW_EXIST)
     {
-      Serial.println("Error initializing ESP-NOW");
+      Serial.println("[ESP-NOW] Already initialized");
+    }
+    else if (init_result != ESP_OK)
+    {
+      Serial.printf("[ESP-NOW] Init failed with error: %d\n", init_result);
       return;
     }
 
-    // Register callbacks AFTER initialization
+    // Set channel and power
+    esp_wifi_set_channel(ESP_NOW_MIDI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+
+    if (reducePowerAtCostOfLatency)
+    {
+      esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+      esp_wifi_set_max_tx_power(44);
+    }
+    else
+    {
+      esp_wifi_set_ps(WIFI_PS_NONE);
+      esp_wifi_set_max_tx_power(84);
+    }
+
+    _peersCount = 0;
+
+    // Register callbacks
     esp_now_register_send_cb(SendCallbackAdapter);
 
-// Fixed: Cast based on version
 #ifdef ESP_NOW_NEW_CALLBACK_SIGNATURE
     esp_now_register_recv_cb(OnDataRecvStatic);
 #else
@@ -176,6 +191,38 @@ public:
     Serial.print("Peer added successfully. Total peers: ");
     Serial.println(_peersCount);
     return true;
+  }
+
+  void clearPeers()
+  {
+    Serial.println("Clearing all peers from ESP-NOW...");
+
+    // Remove all peers from ESP-NOW
+    for (int i = 0; i < _peersCount; i++)
+    {
+      esp_err_t result = esp_now_del_peer(_peers[i].mac);
+      if (result == ESP_OK)
+      {
+        Serial.print("Removed peer: ");
+        for (int j = 0; j < 6; j++)
+        {
+          Serial.print(_peers[i].mac[j], HEX);
+          if (j < 5)
+            Serial.print(":");
+        }
+        Serial.println();
+      }
+      else
+      {
+        Serial.printf("Failed to remove peer, error: %d\n", result);
+      }
+    }
+
+    // Clear the internal peer list
+    memset(_peers, 0, sizeof(_peers));
+    _peersCount = 0;
+
+    Serial.println("All peers cleared");
   }
 
   int getPeersCount() const

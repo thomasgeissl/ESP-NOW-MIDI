@@ -59,7 +59,8 @@ namespace enomik
         void onSystemExclusive(uint8_t *data, unsigned int length)
         {
             io.onSysEx(data, length);
-            if(_onSysExHandler){
+            if (_onSysExHandler)
+            {
                 _onSysExHandler(data, length);
             }
         }
@@ -201,143 +202,144 @@ namespace enomik
             io.begin();
             io.setOnMIDISendRequest([this](midi_message msg)
                                     {
-                                        //send ESP-NOW MIDI
-                                        // this->espnowMIDI.sendToAllPeers((uint8_t *)&msg, sizeof(msg));
+                                //send ESP-NOW MIDI
+                                // this->espnowMIDI.sendToAllPeers((uint8_t *)&msg, sizeof(msg));
 
-                                        switch(msg.status) {
-                                            case MIDI_NOTE_ON:
-                                                sendNoteOn(msg.firstByte, msg.secondByte, msg.channel);
-                                                break;
-                                            case MIDI_NOTE_OFF:
-                                                sendNoteOff(msg.firstByte, msg.secondByte, msg.channel);
-                                                break;
-                                            case MIDI_CONTROL_CHANGE:
-                                                sendControlChange(msg.firstByte, msg.secondByte, msg.channel);
-                                                break;
-                                            case MIDI_PROGRAM_CHANGE:
-                                                sendProgramChange(msg.firstByte, msg.channel);
-                                                break;
-                                                case MIDI_PITCH_BEND:
-                                                {
-                                                    int value = (msg.secondByte << 7) | msg.firstByte;
-                                                    sendPitchBend(value, msg.channel);
-                                                    break;
-                                                }
-                                                case MIDI_AFTERTOUCH:
-                                                {
-                                                    sendAfterTouch(msg.firstByte, msg.channel);
-                                                    break;
-                                                }
-                                                case MIDI_POLY_AFTERTOUCH:
-                                                {
-                                                    sendPolyAfterTouch(msg.firstByte, msg.secondByte, msg.channel);
-                                                    break;
-                                                }
-                                                case MIDI_START:
-                                                    sendStart();
-                                                    break;
-                                                case MIDI_STOP:
-                                                    sendStop();
-                                                    break;
-                                                case MIDI_CONTINUE:
-                                                    sendContinue();
-                                                    break;
-                                                case MIDI_TIME_CLOCK:
-                                                    sendClock();
-                                                    break;
-                                                case MIDI_TIME_CODE:
-                                                    break;
-                                                case MIDI_SONG_POS_POINTER:
-                                                {
-                                                    uint16_t songPos = (msg.secondByte << 7) | msg.firstByte;
-                                                    sendSongPosition(songPos);
-                                                    break;
-                                                }
-                                                case MIDI_SONG_SELECT:
-                                                    sendSongSelect(msg.firstByte);
-                                                    break;      
-                                            default:
-                                                Serial.println("Sent other MIDI message");
-                                        } });
+                                switch(msg.status) {
+                                    case MIDI_NOTE_ON:
+                                        sendNoteOn(msg.firstByte, msg.secondByte, msg.channel);
+                                        break;
+                                    case MIDI_NOTE_OFF:
+                                        sendNoteOff(msg.firstByte, msg.secondByte, msg.channel);
+                                        break;
+                                    case MIDI_CONTROL_CHANGE:
+                                        sendControlChange(msg.firstByte, msg.secondByte, msg.channel);
+                                        break;
+                                    case MIDI_PROGRAM_CHANGE:
+                                        sendProgramChange(msg.firstByte, msg.channel);
+                                        break;
+                                    case MIDI_PITCH_BEND:
+                                    {
+                                        int value = (msg.secondByte << 7) | msg.firstByte;
+                                        sendPitchBend(value, msg.channel);
+                                        break;
+                                    }
+                                    case MIDI_AFTERTOUCH:
+                                    {
+                                        sendAfterTouch(msg.firstByte, msg.channel);
+                                        break;
+                                    }
+                                    case MIDI_POLY_AFTERTOUCH:
+                                    {
+                                        sendPolyAfterTouch(msg.firstByte, msg.secondByte, msg.channel);
+                                        break;
+                                    }
+                                    case MIDI_START:
+                                        sendStart();
+                                        break;
+                                    case MIDI_STOP:
+                                        sendStop();
+                                        break;
+                                    case MIDI_CONTINUE:
+                                        sendContinue();
+                                        break;
+                                    case MIDI_TIME_CLOCK:
+                                        sendClock();
+                                        break;
+                                    case MIDI_TIME_CODE:
+                                        break;
+                                    case MIDI_SONG_POS_POINTER:
+                                    {
+                                        uint16_t songPos = (msg.secondByte << 7) | msg.firstByte;
+                                        sendSongPosition(songPos);
+                                        break;
+                                    }
+                                    case MIDI_SONG_SELECT:
+                                        sendSongSelect(msg.firstByte);
+                                        break;      
+                                    default:
+                                        Serial.println("Sent other MIDI message");
+                                } });
+
             // TODO: this should be part of the other handler
             io.setOnSysExSendRequest([this](midi_sysex_message msg)
                                      { this->sendSysEx(msg.data, msg.length); });
+
             io.setOnAddPeerRequest([this](uint8_t mac[])
                                    {
-                                                              Serial.println("IO requested to add peer:");
-                                                              macPrint(mac);
-                                                              if (this->espnowMIDI.addPeer(mac))
-                                                              {
-                                                                  // Store peer in persistent storage
-                                                                  if (this->peerStorage.add(mac))
-                                                                  {
-                                                                      Serial.println("Peer added and stored successfully");
-                                                                  }
-                                                                  else
-                                                                  {
-                                                                      Serial.println("Failed to store peer");
-                                                                  }
-                                                              }
-                                                              else
-                                                              {
-                                                                  Serial.println("Failed to add peer to ESP-NOW");
-                                                              } });
+                               Serial.println("IO requested to add peer:");
+                               macPrint(mac);
+                               if (this->espnowMIDI.addPeer(mac))
+                               {
+                                   // Store peer in persistent storage
+                                   if (this->peerStorage.add(mac))
+                                   {
+                                       Serial.println("Peer added and stored successfully");
+                                   }
+                                   else
+                                   {
+                                       Serial.println("Failed to store peer");
+                                   }
+                               }
+                               else
+                               {
+                                   Serial.println("Failed to add peer to ESP-NOW");
+                               } });
+
             io.setOnGetPeersRequest([this]()
                                     {
-    Serial.println("GET_PEERS request received");
-    
-    // Print peers
-    for (int i = 0; i < this->peerStorage.count(); i++)
-    {
-        const uint8_t *mac = this->peerStorage.get(i);
-        if (mac)
+        Serial.println("GET_PEERS request received");
+        
+        // Print peers
+        for (int i = 0; i < this->peerStorage.count(); i++)
         {
-            Serial.print("Peer ");
-            Serial.print(i);
-            Serial.print(": ");
-            macPrint(mac);
-            Serial.println();
-        }
-    } 
-    
-    midi_sysex_message msg;
-    msg.data[0] = 0xF0;
-    msg.data[1] = 0x7D; // Manufacturer ID (non-commercial)
-    msg.data[2] = static_cast<uint8_t>(SysExCommand::GET_PEERS_RESPONSE);
-    auto index = 3;
-    
-    for (int i = 0; i < this->peerStorage.count(); i++)
-    {
-        const uint8_t *mac = this->peerStorage.get(i);
-        if (mac)
-        {
-            // Encode MAC address (6 bytes -> 12 bytes in 7-bit format)
-            for (int j = 0; j < 6; j++)
+            const uint8_t *mac = this->peerStorage.get(i);
+            if (mac)
             {
-                msg.data[index++] = (mac[j] >> 4) & 0x0F;  // High nibble
-                msg.data[index++] = mac[j] & 0x0F;         // Low nibble
+                Serial.print("Peer ");
+                Serial.print(i);
+                Serial.print(": ");
+                macPrint(mac);
+                Serial.println();
+            }
+        } 
+        
+        midi_sysex_message msg;
+        msg.data[0] = 0xF0;
+        msg.data[1] = 0x7D; // Manufacturer ID (non-commercial)
+        msg.data[2] = static_cast<uint8_t>(SysExCommand::GET_PEERS_RESPONSE);
+        auto index = 3;
+        
+        for (int i = 0; i < this->peerStorage.count(); i++)
+        {
+            const uint8_t *mac = this->peerStorage.get(i);
+            if (mac)
+            {
+                // Encode MAC address (6 bytes -> 12 bytes in 7-bit format)
+                for (int j = 0; j < 6; j++)
+                {
+                    msg.data[index++] = (mac[j] >> 4) & 0x0F;  // High nibble
+                    msg.data[index++] = mac[j] & 0x0F;         // Low nibble
+                }
             }
         }
-    }
-    
-    msg.data[index] = 0xF7;
-    msg.length = index + 1;
-    Serial.println("Sending peer list via SysEx");
-    Serial.println("Total peers: " + String(this->peerStorage.count()));
-    
-    this->sendSysEx(msg.data, msg.length); });
-
-
-
+        
+        msg.data[index] = 0xF7;
+        msg.length = index + 1;
+        Serial.println("Sending peer list via SysEx");
+        Serial.println("Total peers: " + String(this->peerStorage.count()));
+        
+        this->sendSysEx(msg.data, msg.length); });
 
             io.setOnResetRequest([this]()
                                  {
-                                     this->peerStorage.clear();
-                                     esp_now_deinit();
-delay(10);
-esp_now_init();
-                                    //  esp_now_del_peer(nullptr);   // removes all
-                                 });
+                            this->peerStorage.clear();
+                            this->espnowMIDI.clearPeers();
+
+                            //  esp_now_deinit();
+                            //  delay(10);
+                            //  esp_now_init();
+                             });
 
 #ifdef HAS_USB_MIDI
             // Initialize USB MIDI using global instance
@@ -358,16 +360,10 @@ esp_now_init();
             Serial.println("USB MIDI initialized");
 #endif
 
-            // Initialize WiFi
-            WiFi.mode(WIFI_STA);
-            Serial.print("MAC Address: ");
-            Serial.println(WiFi.macAddress());
-
             // Initialize ESP-NOW MIDI
             espnowMIDI.begin();
 
             // --- Set handlers for ESP-NOW ---
-            // espnowMIDI.setHandleSysEx(handleSysExStatic);
             espnowMIDI.setHandleNoteOn(handleNoteOnStatic);
             espnowMIDI.setHandleNoteOff(handleNoteOffStatic);
             espnowMIDI.setHandleControlChange(handleControlChangeStatic);
@@ -396,7 +392,6 @@ esp_now_init();
             USBMIDI.setHandleStop(handleStopStatic);
             USBMIDI.setHandleContinue(handleContinueStatic);
             USBMIDI.setHandleClock(handleClockStatic);
-            // USBMIDI.setHandleSongPosition(handleSongPositionStatic);
             USBMIDI.setHandleSongSelect(handleSongSelectStatic);
 #endif
 
@@ -407,17 +402,42 @@ esp_now_init();
                 return;
             }
 
+            Serial.println("Restoring peers from storage...");
+            int restoredCount = 0;
+            int skippedCount = 0;
+
             // Restore all peers from storage to ESP-NOW
             for (int i = 0; i < peerStorage.count(); i++)
             {
                 const uint8_t *mac = peerStorage.get(i);
                 if (mac)
                 {
-                    espnowMIDI.addPeer(mac);
-                    Serial.print("Restored peer: ");
-                    Serial.println(macToString(mac));
+                    // Check if peer already exists before adding
+                    if (!espnowMIDI.hasPeer(mac))
+                    {
+                        if (espnowMIDI.addPeer(mac))
+                        {
+                            Serial.print("Restored peer: ");
+                            Serial.println(macToString(mac));
+                            restoredCount++;
+                        }
+                        else
+                        {
+                            Serial.print("Failed to restore peer: ");
+                            Serial.println(macToString(mac));
+                        }
+                    }
+                    else
+                    {
+                        Serial.print("Peer already exists, skipping: ");
+                        Serial.println(macToString(mac));
+                        skippedCount++;
+                    }
                 }
             }
+
+            Serial.printf("Peer restoration complete: %d restored, %d skipped\n",
+                          restoredCount, skippedCount);
 
             isInitialized = true;
         }

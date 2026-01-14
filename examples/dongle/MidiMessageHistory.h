@@ -1,5 +1,5 @@
 #pragma once
-#include <esp_now_midi.h>
+#include "midiHelpers.h"
 
 struct MidiMessageHistory {
   midi_message message;
