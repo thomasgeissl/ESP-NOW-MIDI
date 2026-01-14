@@ -2,7 +2,10 @@
 
 
 // on the dongle: run the print_mac firmware and paste it here
-uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+// uint8_t peerMacAddress[6] = { 0x84, 0xF7, 0x03, 0xF2, 0x54, 0x62 };
+// uint8_t peerMacAddress[6] = { 0x24, 0x58, 0x7C, 0xEC, 0x6C, 0x24 };
+// or set via the web interface
+
 enomik::Client _client;
 
 void onNoteOn(byte channel, byte note, byte velocity) {
@@ -46,7 +49,7 @@ void onClock() {
 void setup() {
   Serial.begin(115200);
   _client.begin();
-  _client.addPeer(peerMacAddress);
+  // _client.addPeer(peerMacAddress);
 
   _client.setHandleNoteOn(onNoteOn);
   _client.setHandleNoteOff(onNoteOff);
