@@ -333,13 +333,13 @@ namespace enomik
 
             io.setOnResetRequest([this]()
                                  {
-                            this->peerStorage.clear();
-                            this->espnowMIDI.clearPeers();
+                                     this->peerStorage.clear();
+                                     this->espnowMIDI.clearPeers();
 
-                            //  esp_now_deinit();
-                            //  delay(10);
-                            //  esp_now_init();
-                             });
+                                     //  esp_now_deinit();
+                                     //  delay(10);
+                                     //  esp_now_init();
+                                 });
 
 #ifdef HAS_USB_MIDI
             // Initialize USB MIDI using global instance
@@ -440,6 +440,7 @@ namespace enomik
                           restoredCount, skippedCount);
 
             isInitialized = true;
+            sendHandShake();
         }
 
         void loop()
@@ -747,6 +748,38 @@ namespace enomik
         void setHandleSysEx(std::function<void(uint8_t *data, unsigned int length)> handler)
         {
             _onSysExHandler = handler;
+        }
+
+        void sendHandShake()
+        {
+            if (!isInitialized)
+            {
+                Serial.println("Client not initialized. Cannot send handshake.");
+                return;
+            }
+            // TODO: refactor to use sysex instead of control change
+            // also add a heartbeat mechanism
+
+            byte channel = 16;
+            byte control = 127;
+            byte value = 127;
+
+            for (int i = 0; i < peerStorage.count(); i++)
+            {
+                const uint8_t *mac = peerStorage.get(i);
+                if (mac)
+                {
+                    bool ok = espnowMIDI.sendControlChange(control, value, channel);
+                    if (ok)
+                    {
+                    }
+                    else
+                    {
+                        Serial.print("Failed to send handshake to: ");
+                        Serial.println(macToString(mac));
+                    }
+                }
+            }
         }
 
         // Simplified peer management - delegates to PeerStorage
