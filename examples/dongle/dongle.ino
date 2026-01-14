@@ -321,7 +321,7 @@ void onSongSelect(byte value) {
 
 void setup() {
   Serial.begin(115200);
-  delay(5000);
+  delay(1000);
 
   Serial.println("=== ESP-NOW MIDI DONGLE ===");
   Serial.printf("ESP-IDF Version: %s\n", esp_get_idf_version());

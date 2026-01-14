@@ -117,17 +117,17 @@ void drawHeader(const uint8_t mac[6],
 
   static void formatStatus(uint8_t status, char out[7]) {
     switch (status) {
-      case MIDI_NOTE_ON: strcpy(out, "N_ON"); break;
+      case MIDI_NOTE_ON: strcpy(out, "N_ON "); break;
       case MIDI_NOTE_OFF: strcpy(out, "N_OFF"); break;
-      case MIDI_CONTROL_CHANGE: strcpy(out, "CC"); break;
-      case MIDI_PROGRAM_CHANGE: strcpy(out, "PC"); break;
+      case MIDI_CONTROL_CHANGE: strcpy(out, "CC   "); break;
+      case MIDI_PROGRAM_CHANGE: strcpy(out, "PC   "); break;
       case MIDI_PITCH_BEND: strcpy(out, "PBEND"); break;
-      case MIDI_AFTERTOUCH: strcpy(out, "AT"); break;
-      case MIDI_POLY_AFTERTOUCH: strcpy(out, "PAT"); break;
+      case MIDI_AFTERTOUCH: strcpy(out, "AT   "); break;
+      case MIDI_POLY_AFTERTOUCH: strcpy(out, "PAT  "); break;
       case MIDI_START: strcpy(out, "START"); break;
-      case MIDI_STOP: strcpy(out, "STOP"); break;
-      case MIDI_CONTINUE: strcpy(out, "CONT"); break;
-      default: strcpy(out, "UNK"); break;
+      case MIDI_STOP: strcpy(out, "STOP "); break;
+      case MIDI_CONTINUE: strcpy(out, "CONT "); break;
+      default: strcpy(out, "UNK  "); break;
     }
   }
 };
