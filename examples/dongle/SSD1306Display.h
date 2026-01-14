@@ -76,7 +76,7 @@ void drawHeader(const uint8_t mac[6],
   void drawHistory(const MidiMessageHistory* history,
                    int size,
                    int head) {
-    int y = 18;
+    int y = 22;
 
     for (int i = 0; i < size; ++i) {
       int idx = (head + i) % size;
