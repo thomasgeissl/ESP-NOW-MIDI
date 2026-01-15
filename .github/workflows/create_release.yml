@@ -16,8 +16,10 @@ jobs:
         board:
           - fqbn: "esp32:esp32:lolin_s2_mini"
             name: "lolin_s2_mini"
-          - fqbn: "esp32:esp32:s3devkitc-1"
-            name: "esp32_s3_generic"
+            build_properties: ""
+          - fqbn: "esp32:esp32:lolin_s3_mini"
+            name: "lolin_s3_mini"
+            build_properties: "USBMode=tinyusb"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,7 +50,11 @@ jobs:
             if [ -d "$sketch" ]; then
               sketch_name=$(basename "$sketch")
               echo "Building $sketch_name for ${{ matrix.board.name }}"
-              arduino-cli compile --fqbn ${{ matrix.board.fqbn }} "$sketch" --output-dir build/"$sketch_name" || echo "Failed to build $sketch_name for ${{ matrix.board.name }}"
+              if [ -n "${{ matrix.board.build_properties }}" ]; then
+                arduino-cli compile --fqbn ${{ matrix.board.fqbn }} --build-property "${{ matrix.board.build_properties }}" "$sketch" --output-dir build/"$sketch_name" || echo "Failed to build $sketch_name for ${{ matrix.board.name }}"
+              else
+                arduino-cli compile --fqbn ${{ matrix.board.fqbn }} "$sketch" --output-dir build/"$sketch_name" || echo "Failed to build $sketch_name for ${{ matrix.board.name }}"
+              fi
             fi
           done
       - name: Organize binaries
